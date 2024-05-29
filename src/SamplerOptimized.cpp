@@ -81,6 +81,7 @@ void SamplerOptimized::SetSample(uint8_t channel, Sample *s)
     sample = s;
 }
 
+__attribute((optimize("-O3")))
 void SamplerOptimized::Process(int16_t *output)
 {
     float data[SAMPLE_BUFFER_SIZE] = {0.0f};
@@ -99,57 +100,56 @@ void SamplerOptimized::Process(int16_t *output)
 
         float pitch = PitchFromNoteNo(player->noteNo, player->sample->root);
 
+        // posとpos_fをローカル変数にコピーすることでレジスタのみで処理できる
+        auto pos = player->pos;
+        auto pos_f = player->pos_f;
+
+        uint32_t pitch_u = pitch; // pitchの整数部分
+        float pitch_frac = pitch - pitch_u; // pitchの小数部分
+
         if (sample->adsrEnabled) // adsrEnabledによる場合分けが多いので、まずadsrEnabledで分ける
         {
+            float gain = player->adsrGain * masterVolume;
+
             for (int n = 0; n < SAMPLE_BUFFER_SIZE; n++)
             {
-                // 波形を読み込む&線形補完
-                float val = (sample->sample[player->pos + 1] * player->pos_f) + (sample->sample[player->pos] * (1.0f - player->pos_f));
-                val *= player->adsrGain;
-                data[n] += val;
+                // 波形を読み込む
+                int32_t current_sample = sample->sample[pos];
+                int32_t next_sample = sample->sample[pos + 1];
+                // 線形補間
+                float diff = next_sample - current_sample;
+                float val = (float)current_sample + diff * pos_f;
+
+                // 音量を適用し出力とミックス
+                data[n] += val * gain;
 
                 // 次のサンプルへ移動
-                int32_t pitch_u = pitch;
-                player->pos_f += pitch - pitch_u;
-                player->pos += pitch_u;
-                if (player->pos_f >= 1.0f)
+                pos += pitch_u;
+                pos_f = pitch_frac;
+                if (pos_f >= 1.0f)
                 {
-                    player->pos++;
-                    player->pos_f--;
+                    pos_f -= 1.0f;
+                    pos++;
                 }
 
                 // ループポイントが設定されている場合はループする
-                while (player->pos >= sample->loopEnd)
-                    player->pos -= (sample->loopEnd - sample->loopStart);
+                if (pos >= sample->loopEnd)
+                    pos -= (sample->loopEnd - sample->loopStart);
             }
         }
         else
         {
-            for (int n = 0; n < SAMPLE_BUFFER_SIZE; n++)
-            {
-                if (player->pos >= sample->length)
-                {
-                    player->playing = false;
-                    break;
-                }
-                // 波形を読み込む
-                float val = sample->sample[player->pos];
-                val *= player->volume;
-                data[n] += val;
-
-                // 次のサンプルへ移動
-                int32_t pitch_u = pitch;
-                player->pos_f += pitch - pitch_u;
-                player->pos += pitch_u;
-                int posI = player->pos_f;
-                player->pos += posI;
-                player->pos_f -= posI;
-            }
+            // TODO: adsrEnabledでないサンプルを用いる時は実装する
         }
+        player->pos = pos;
+        player->pos_f = pos_f;
     }
 
-    for (uint8_t i = 0; i < SAMPLE_BUFFER_SIZE; i++)
+    for (uint8_t i = 0; i < SAMPLE_BUFFER_SIZE; i+=4)
     {
-        output[i] = int16_t(data[i] * masterVolume);
+        output[i+0] = data[i+0];
+        output[i+1] = data[i+1];
+        output[i+2] = data[i+2];
+        output[i+3] = data[i+3];
     }
 }
