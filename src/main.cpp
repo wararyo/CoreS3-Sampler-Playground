@@ -1,6 +1,7 @@
 #include <M5Unified.h>
 #include <SamplerBase.h>
 #include <SamplerLegacy.h>
+#include <SamplerOptimized.h>
 #include <piano.h>
 
 #define ENABLE_PRINTING true
@@ -80,8 +81,9 @@ void loop()
   if (touch.wasClicked() && touch.base_y < M5.Display.height())
   {
     M5.Display.println("Processing...");
-    SamplerLegacy samplerLegacy = SamplerLegacy();
-    time_t elapsedTime = benchmark(&samplerLegacy);
+    // SamplerLegacy sampler = SamplerLegacy();
+    SamplerOptimized sampler = SamplerOptimized();
+    time_t elapsedTime = benchmark(&sampler);
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");
 #else
