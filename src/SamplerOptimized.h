@@ -3,7 +3,7 @@
 #include <SamplerBase.h>
 #include <Arduino.h>
 
-class SamplerLegacy : public SamplerBase
+class SamplerOptimized : public SamplerBase
 {
 public:
     struct SamplePlayer

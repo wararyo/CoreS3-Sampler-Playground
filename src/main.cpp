@@ -1,6 +1,6 @@
 #include <M5Unified.h>
 #include <SamplerBase.h>
-#include <SamplerLegacy.h>
+#include <SamplerOptimized.h>
 #include <piano.h>
 
 #define ENABLE_PRINTING false
@@ -16,8 +16,6 @@ static struct Sample piano = Sample{
     0.998887f,
     0.1f,
     0.988885f};
-
-SamplerLegacy samplerLegacy;
 
 static constexpr const uint8_t SPK_CH = 1;
 
@@ -68,7 +66,6 @@ uint32_t benchmark(SamplerBase *sampler)
 {
   int16_t output[2][SAMPLE_BUFFER_SIZE] = {0};
   bool buf_idx = false;
-  samplerLegacy = SamplerLegacy();
 
   uint32_t cycle_count = 0;
 
@@ -140,7 +137,10 @@ void loop()
     M5.Display.clear();
     M5.Display.setCursor(0,0);
     M5.Display.println("Processing...");
-    time_t elapsedTime = benchmark(&samplerLegacy);
+
+    SamplerOptimized sampler = SamplerOptimized();
+    time_t elapsedTime = benchmark(&sampler);
+    
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");
 #else

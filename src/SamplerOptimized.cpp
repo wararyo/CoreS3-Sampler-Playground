@@ -1,13 +1,13 @@
-#include <SamplerLegacy.h>
+#include <SamplerOptimized.h>
 
-float SamplerLegacy::PitchFromNoteNo(float noteNo, float root)
+float SamplerOptimized::PitchFromNoteNo(float noteNo, float root)
 {
     float delta = noteNo - root;
     float f = ((pow(2.0f, delta / 12.0f)));
     return f;
 }
 
-void SamplerLegacy::UpdateAdsr(SamplerLegacy::SamplePlayer *player)
+void SamplerOptimized::UpdateAdsr(SamplerOptimized::SamplePlayer *player)
 {
     Sample *sample = player->sample;
     float goal;
@@ -46,14 +46,14 @@ void SamplerLegacy::UpdateAdsr(SamplerLegacy::SamplePlayer *player)
     }
 }
 
-void SamplerLegacy::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
+void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     uint8_t oldestPlayerId = 0;
     for (uint8_t i = 0; i < MAX_SOUND; i++)
     {
         if (players[i].playing == false)
         {
-            players[i] = SamplerLegacy::SamplePlayer(sample, noteNo, velocity / 127.0f);
+            players[i] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
             return;
         }
         else
@@ -63,9 +63,9 @@ void SamplerLegacy::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    players[oldestPlayerId] = SamplerLegacy::SamplePlayer(sample, noteNo, velocity / 127.0f);
+    players[oldestPlayerId] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
 }
-void SamplerLegacy::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
+void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     for (uint8_t i = 0; i < MAX_SOUND; i++)
     {
@@ -76,13 +76,13 @@ void SamplerLegacy::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
     }
 }
 
-void SamplerLegacy::SetSample(uint8_t channel, Sample *s)
+void SamplerOptimized::SetSample(uint8_t channel, Sample *s)
 {
     sample = s;
 }
 
 __attribute((optimize("-O3")))
-void SamplerLegacy::Process(int16_t* __restrict__ output)
+void SamplerOptimized::Process(int16_t* __restrict__ output)
 {
     float data[SAMPLE_BUFFER_SIZE] = {0.0f};
 
