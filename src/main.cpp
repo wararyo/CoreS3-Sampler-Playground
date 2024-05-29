@@ -17,8 +17,6 @@ static struct Sample piano = Sample{
     0.1f,
     0.988885f};
 
-SamplerLegacy samplerLegacy;
-
 inline void process(SamplerBase *sampler, int16_t *output)
 {
   sampler->Process(output);
@@ -32,8 +30,6 @@ inline void process(SamplerBase *sampler, int16_t *output)
 
 time_t benchmark(SamplerBase *sampler)
 {
-  samplerLegacy = SamplerLegacy();
-
   unsigned long startTime = micros();
 
   sampler->SetSample(0, &piano);
@@ -84,6 +80,7 @@ void loop()
   if (touch.wasClicked() && touch.base_y < M5.Display.height())
   {
     M5.Display.println("Processing...");
+    SamplerLegacy samplerLegacy = SamplerLegacy();
     time_t elapsedTime = benchmark(&samplerLegacy);
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");
