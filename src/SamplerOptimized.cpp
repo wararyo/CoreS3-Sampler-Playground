@@ -117,9 +117,11 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         auto pos = player->pos;
         float pos_f = player->pos_f;
         auto src = sample->sample;
-
-        if (pitch < 1.0f)
-        { // pitchが1未満の場合は線形補間処理を行う。
+/*
+        // pitchが充分に低い場合 (0.5以下ぐらい？？) 、同一サンプル点から2回以上連続して線形補間処理ができるので、
+        // それに合わせてより軽量になりそうな処理を試す。効果がなさそうならこの分岐内の処理は省いてもよい
+        if (pitch <= 0.5f)
+        {
             uint32_t n = 0;
             int32_t current_sample = src[pos];
             int32_t next_sample = src[pos + 1];
@@ -147,56 +149,70 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
                     diff = next_sample - current_sample;
                 }
             } while (++n < SAMPLE_BUFFER_SIZE);
-        } else {
-            // pitchが1以上の場合は補間処理の効果がそれほど高くないと思われるので処理を省いて高速化する
+        } else
+//*/
+        { // pitchの状況に関わらず補間処理による波形生成を行う
+
             // ループの残り回数をremainに保持しておく
             uint32_t remain = SAMPLE_BUFFER_SIZE;
             auto d = data;
             do {
-                // loopEndに到達するまで何個サンプル出力できるか求める
+                // loopEndに到達するまでに何個サンプル出力できるか求める
                 int32_t length = 1 + ((loopEnd - pos) / pitch);
                 // ループの残り回数を考慮してlengthを調整
                 length = remain < length ? remain : length;
-                // ループ残り回数をカウントダウン
+                // ループ残り回数から今回処理する分を引いておく
                 remain -= length;
-                if (length & 3)
-                { // 後で4個単位でサンプル処理するので、先に端数分のループを処理する
-                    int l = length & 3;
+                auto s = &src[pos];
+                // 処理回数が奇数の場合は先に1つ処理しておく
+                if (length & 1) {
+                    // サンプリング元データを2点読み込む
+                    int32_t s0 = s[0];
+                    int32_t s1 = s[1];
+                    // 2点間の差分にpos_fを掛けて補間
+                    auto val = s0 + (s1 - s0) * pos_f;
+                    // 音量係数gainを掛けたあと波形合成
+                    d[0] += val * gain;
+                    // 出力先をひとつ進める
+                    ++d;
+                    // pos_fをpitchぶん進める
+                    pos_f += pitch;
+                    // pos_fから整数部分を取り出す
+                    uint32_t intval = pos_f;
+                    // pos_fから整数部分を引くことで小数部分のみを取り出す
+                    pos_f -= intval;
+                    // サンプリング元データ取得位置を進める
+                    s += intval;
+                    // 処理したのでlengthを1減らす
+                    --length;
+                }
+                // 残りの処理回数は2の倍数であるので、回数を 1/2 にしておく
+                length >>= 1;
+                if (length)
+                { // 1ループあたり2個のサンプルを処理する。(レジスタの使用効率を上げるため)
                     do {
-                        // 補間処理を省略して波形合成
-                        d[0] += src[pos] * gain;
-                        d += 1;
+                        int32_t s0 = s[0];
+                        int32_t s1 = s[1];
+                        auto val = s0 + (s1 - s0) * pos_f;
+                        d[0] += val * gain;
                         pos_f += pitch;
                         uint32_t intval = pos_f;
-                        pos += intval;
                         pos_f -= intval;
-                    } while (--l);
-                }
-                // lengthを右2ビットシフトしてループ回数を 1/4にしておく
-                length >>= 2;
-                if (length)
-                { // 4個単位でサンプル処理を行う
-                    do {
-                        auto s = &src[pos];
-                        float pf1 = pos_f + pitch;
-                        float pf2 = pf1 + pitch;
-                        float pf3 = pf2 + pitch;
-                        float d0 = d[0] + s[0            ] * gain;
-                        float d1 = d[1] + s[(uint32_t)pf1] * gain;
-                        float d2 = d[2] + s[(uint32_t)pf2] * gain;
-                        float d3 = d[3] + s[(uint32_t)pf3] * gain;
-                        pos_f = pf3 + pitch;
-                        uint32_t intval = (uint32_t)pos_f;
-                        pos += intval;
+                        s += intval;
+
+                        s0 = s[0];
+                        s1 = s[1];
+                        val = s0 + (s1 - s0) * pos_f;
+                        d[1] += val * gain;
+                        pos_f += pitch;
+                        intval = pos_f;
                         pos_f -= intval;
-                        d[0] = d0;
-                        d[1] = d1;
-                        d[2] = d2;
-                        d[3] = d3;
-                        d += 4;
+                        s += intval;
+                        d += 2;
                     } while (--length);
                 }
-
+                // posの計算は最後にループ外で行う
+                pos = s - src;
                 if (pos >= loopEnd) {
                     if (loopBack == 0)
                     {   // ループポイントが設定されていない場合は再生を停止する
