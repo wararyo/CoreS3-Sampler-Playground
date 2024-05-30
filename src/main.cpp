@@ -64,16 +64,18 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
 
 uint32_t benchmark(SamplerBase *sampler)
 {
-  int16_t output[2][SAMPLE_BUFFER_SIZE] = {0};
-  bool buf_idx = false;
+  // M5.Speakerに渡すバッファとして4つ用意する。(3個あればよいが循環処理をしやすくするため4個とした)
+  int16_t output[4][SAMPLE_BUFFER_SIZE] = {0};
+  uint8_t buf_idx = 0;
 
   uint32_t cycle_count = 0;
 
   sampler->SetSample(0, &piano);
   uint32_t processedSamples = 0; // 処理済みのサンプル数
 
-  M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 1, SPK_CH);
-  buf_idx = !buf_idx;
+  // 最初に無音を再生しておくことで先頭のノイズを抑える
+  M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
+  buf_idx = (buf_idx + 1) & 3;
   // 0秒時点の処理
   sampler->NoteOn(60, 127, 0); // ド
   sampler->NoteOn(64, 127, 0); // ミ
@@ -82,7 +84,7 @@ uint32_t benchmark(SamplerBase *sampler)
   while (processedSamples < nextGoal)
   {
     cycle_count += process(sampler, output[buf_idx]);
-    buf_idx = !buf_idx;
+    buf_idx = (buf_idx + 1) & 3;
     processedSamples += SAMPLE_BUFFER_SIZE;
   }
 
@@ -94,7 +96,7 @@ uint32_t benchmark(SamplerBase *sampler)
   while (processedSamples < nextGoal)
   {
     cycle_count += process(sampler, output[buf_idx]);
-    buf_idx = !buf_idx;
+    buf_idx = (buf_idx + 1) & 3;
     processedSamples += SAMPLE_BUFFER_SIZE;
   }
 
@@ -112,10 +114,11 @@ void setup()
 {
   M5.begin();
   {
+  	// 無駄がないようにサンプルレートとバッファ長をSamplerの処理と揃えておく
     auto spk_cfg = M5.Speaker.config();
-    spk_cfg.sample_rate = 48000;
+    spk_cfg.sample_rate = SAMPLE_RATE;
     spk_cfg.task_pinned_core = PRO_CPU_NUM;
-    spk_cfg.dma_buf_len = 64;
+    spk_cfg.dma_buf_len = SAMPLE_BUFFER_SIZE;
     spk_cfg.dma_buf_count = 16;
 
     M5.Speaker.config(spk_cfg);
