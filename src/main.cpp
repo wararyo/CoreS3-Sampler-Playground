@@ -95,13 +95,9 @@ uint32_t benchmark(SamplerBase *sampler)
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
   buf_idx = (buf_idx + 1) & 3;
   // 0秒時点の処理
-  sampler->NoteOn(50, 127, 0); // レ
-  sampler->NoteOn(55, 127, 0); // ソ
   sampler->NoteOn(60, 127, 0); // ド
-  sampler->NoteOn(65, 127, 0); // ファ
-  sampler->NoteOn(71, 127, 0); // シ
-  sampler->NoteOn(76, 127, 0); // ミ
-  sampler->NoteOn(81, 127, 0); // ラ
+  sampler->NoteOn(64, 127, 0); // ミ
+  sampler->NoteOn(67, 127, 0); // ソ
   uint32_t nextGoal = SAMPLE_RATE * 1;
   while (processedSamples < nextGoal)
   {
@@ -111,13 +107,9 @@ uint32_t benchmark(SamplerBase *sampler)
   }
 
   // 1秒時点の処理
-  sampler->NoteOff(50, 0, 0);
-  sampler->NoteOff(55, 0, 0);
   sampler->NoteOff(60, 0, 0);
-  sampler->NoteOff(65, 0, 0);
-  sampler->NoteOff(71, 0, 0);
-  sampler->NoteOff(76, 0, 0);
-  sampler->NoteOff(81, 0, 0);
+  sampler->NoteOff(64, 0, 0);
+  sampler->NoteOff(67, 0, 0);
   nextGoal = SAMPLE_RATE * 2;
   while (processedSamples < nextGoal)
   {
