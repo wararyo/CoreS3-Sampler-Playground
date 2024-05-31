@@ -2,7 +2,13 @@
 
 #include <stdio.h>
 
-#define SAMPLE_BUFFER_SIZE 64
+// ADSR更新周期 (サンプル数)
+// ※ ADSRの更新周期が短いほど、ADSRの変化が滑らかになりますが、CPU負荷が増加します
+#define ADSR_UPDATE_SAMPLE_COUNT 64
+
+// 1回の波形生成処理で出力するサンプル数 (ADSR_UPDATE_SAMPLE_COUNT の倍数であること)
+// ※ この数値が大きいほど、波形生成処理の効率が向上しますが、操作してから発音されるまでのレイテンシが増加します
+#define SAMPLE_BUFFER_SIZE ( ADSR_UPDATE_SAMPLE_COUNT * 2 )
 #define SAMPLE_RATE 48000
 
 #define MAX_SOUND 16 // 最大同時発音数
