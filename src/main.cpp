@@ -2,11 +2,14 @@
 #include <SamplerBase.h>
 #include <SamplerOptimized.h>
 #include <piano.h>
+#include <sine.h>
 
 #define ENABLE_PRINTING false
 
 int16_t *piano_sample_psram;
+int16_t *sine_sample_sram;
 struct Sample piano;
+struct Sample sine;
 
 static constexpr const uint8_t SPK_CH = 1;
 
@@ -72,8 +75,20 @@ uint32_t benchmark(SamplerBase *sampler)
       0.998887f,
       0.1f,
       0.988885f};
+  sine = Sample{
+    sine_sample_sram,
+    3000,
+    60,
+    1368,
+    1453,
+    true,
+    1.0f,
+    0.998887f,
+    0.1f,
+    0.988885f};
   M5.Log.printf("piano.sample  : %4x\n", piano.sample);
-  sampler->SetSample(0, &piano);
+  M5.Log.printf("sine.sample  : %4x\n", sine.sample);
+  sampler->SetSample(0, &sine);
   uint32_t processedSamples = 0; // 処理済みのサンプル数
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
@@ -149,9 +164,12 @@ void setup()
   }
 
   // ピアノサンプルをPSRAMにコピー
-  printMem();
   piano_sample_psram = (int16_t *)heap_caps_malloc(64000, MALLOC_CAP_SPIRAM);
   memcpy(piano_sample_psram, piano_sample, 64000);
+
+  // サイン派サンプルをPSRAMにコピー
+  sine_sample_sram = (int16_t *)heap_caps_malloc(6000, MALLOC_CAP_INTERNAL);
+  memcpy(sine_sample_sram, sine_sample, 6000);
 
   M5.Display.startWrite();
   // M5.Display.setRotation(M5.Display.getRotation() ^ 1);
@@ -175,6 +193,9 @@ void loop()
     M5.Log.printf("piano_sample  : %4x\n", piano_sample);
     M5.Log.printf("piano_sample_psram  : %4x\n", piano_sample_psram);
     M5.Log.printf("piano_sample_psram[0]  : %2x\n", piano_sample_psram[0]);
+    M5.Log.printf("sine_sample  : %4x\n", sine_sample);
+    M5.Log.printf("sine_sample_sram  : %4x\n", sine_sample_sram);
+    M5.Log.printf("sine_sample_sram[0]  : %2x\n", sine_sample_sram[0]);
     time_t elapsedTime = benchmark(&sampler);
     
 #if ENABLE_PRINTING
