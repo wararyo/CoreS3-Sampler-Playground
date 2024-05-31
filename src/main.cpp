@@ -27,7 +27,7 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
   __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_end) ); // 処理後のCPUサイクル値を取得
   uint32_t cycle = cycle_end - cycle_begin;
 #if ENABLE_PRINTING
-  for (uint8_t i; i < SAMPLE_BUFFER_SIZE; i++)
+  for (uint_fast16_t i; i < SAMPLE_BUFFER_SIZE; i++)
   {
     Serial.printf("%d,", output[i]);
   }
@@ -40,7 +40,7 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
     static int x = 0;
     static int y1 = 0;
     int dh = M5.Display.height();
-    for (int i = 0; i < SAMPLE_BUFFER_SIZE; i++)
+    for (uint_fast16_t i = 0; i < SAMPLE_BUFFER_SIZE; i++)
     {
       M5.Display.writeFastVLine(x, prev_yh[x][0], prev_yh[x][1], TFT_BLACK);
       int y0 = (dh >> 1) - (output[i] >> 7);
@@ -125,7 +125,7 @@ void setup()
     M5.Speaker.setVolume(192);
   }
   M5.Display.startWrite();
-  // M5.Display.setRotation(M5.Display.getRotation() ^ 1);
+  M5.Display.setRotation(M5.Display.getRotation() ^ 1);
   M5.Display.setTextSize(2);
   M5.Display.println("Hello World!");
   M5.Display.println("");
