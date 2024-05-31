@@ -125,7 +125,7 @@ void setup()
     M5.Speaker.setVolume(192);
   }
   M5.Display.startWrite();
-  // M5.Display.setRotation(M5.Display.getRotation() ^ 1);
+  M5.Display.setRotation(M5.Display.getRotation() ^ 1);
   M5.Display.setTextSize(2);
   M5.Display.println("Hello World!");
   M5.Display.println("");

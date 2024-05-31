@@ -87,22 +87,26 @@ struct sampler_process_inner_work_t {
     const int16_t* src;
     float* dst;
     float pos_f;
+    float gain;
+    float pitch;
 };
 
 extern "C" {
 // アセンブリ言語版を呼び出すための関数宣言
 // これをコメントアウトすると、アセンブリ言語版は呼ばれなくなり、C/C++版が呼ばれる
-    void sampler_process_inner(sampler_process_inner_work_t* result, uint32_t length, float gain, float pitch);
+    void sampler_process_inner(sampler_process_inner_work_t* work, uint32_t length);
 }
 
 // アセンブリ言語版と同様の処理を行うC/C++版の実装
 // weak属性を付けることで、アセンブリ言語版があればそちらを使う
 __attribute((weak, optimize("-O3")))
-void sampler_process_inner(sampler_process_inner_work_t* result, uint32_t length, float gain, float pitch)
+void sampler_process_inner(sampler_process_inner_work_t* work, uint32_t length)
 {
-    const int16_t* s = result->src;
-    float* d = result->dst;
-    float pos_f = result->pos_f;
+    const int16_t* s = work->src;
+    float* d = work->dst;
+    float pos_f = work->pos_f;
+    float gain = work->gain;
+    float pitch = work->pitch;
     do {
         int32_t s0 = s[0];
         int32_t s1 = s[1];
@@ -122,10 +126,10 @@ void sampler_process_inner(sampler_process_inner_work_t* result, uint32_t length
         s += intval;
         // 処理したのでlengthを1減らす
     } while (--length);
-    // 結果をresultに書き戻す
-    result->src = s;
-    result->dst = d;
-    result->pos_f = pos_f;
+    // 結果をworkに書き戻す
+    work->src = s;
+    work->dst = d;
+    work->pos_f = pos_f;
 }
 
 __attribute((optimize("-O3")))
@@ -170,7 +174,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
 
             // ループの残り回数をremainに保持しておく
             uint32_t remain = ADSR_UPDATE_SAMPLE_COUNT;
-            sampler_process_inner_work_t work = {&src[pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], pos_f};
+            sampler_process_inner_work_t work = {&src[pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], pos_f, gain, pitch};
 
             do {
                 // loopEndに到達するまでに何個サンプル出力できるか求める
@@ -181,7 +185,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
                 remain -= length;
 
                 // 波形処理関数を呼び出す。
-                sampler_process_inner(&work, length, gain, pitch);
+                sampler_process_inner(&work, length);
 
                 // 現在のサンプル位置に基づいてposがどこまで進んだか求める
                 pos = work.src - src;
