@@ -65,16 +65,16 @@ uint32_t benchmark(SamplerBase *sampler)
   uint32_t cycle_count = 0;
 
   piano = Sample{
-      piano_sample_psram,
-      32000,
-      60,
-      26253,
-      26436,
-      true,
-      1.0f,
-      0.998887f,
-      0.1f,
-      0.988885f};
+    piano_sample_psram,
+    32000,
+    60,
+    26253,
+    26436,
+    true,
+    1.0f,
+    0.998887f,
+    0.1f,
+    0.988885f};
   sine = Sample{
     sine_sample_sram,
     3000,
