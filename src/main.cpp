@@ -5,17 +5,8 @@
 
 #define ENABLE_PRINTING false
 
-static struct Sample piano = Sample{
-    piano_sample,
-    32000,
-    60,
-    26253,
-    26436,
-    true,
-    1.0f,
-    0.998887f,
-    0.1f,
-    0.988885f};
+int16_t *piano_sample_psram;
+struct Sample piano;
 
 static constexpr const uint8_t SPK_CH = 1;
 
@@ -70,6 +61,18 @@ uint32_t benchmark(SamplerBase *sampler)
 
   uint32_t cycle_count = 0;
 
+  piano = Sample{
+      piano_sample_psram,
+      32000,
+      60,
+      26253,
+      26436,
+      true,
+      1.0f,
+      0.998887f,
+      0.1f,
+      0.988885f};
+  M5.Log.printf("piano.sample  : %4x\n", piano.sample);
   sampler->SetSample(0, &piano);
   uint32_t processedSamples = 0; // 処理済みのサンプル数
 
@@ -110,9 +113,21 @@ uint32_t benchmark(SamplerBase *sampler)
   return cycle_count / getCpuFrequencyMhz();
 }
 
+void printMem()
+{
+  M5.Log.printf("heap_caps_get_free_size(MALLOC_CAP_SPIRAM)            : %6d\n", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  M5.Log.printf("heap_caps_get_free_size(MALLOC_CAP_INTERNAL)          : %6d\n", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+  M5.Log.printf("heap_caps_get_free_size(MALLOC_CAP_DEFAULT)           : %6d\n", heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
+  M5.Log.printf("heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM)   : %6d\n", heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+  M5.Log.printf("heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) : %6d\n", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+  M5.Log.printf("heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT)  : %6d\n", heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
+  M5.Log.println();
+}
+
 void setup()
 {
   M5.begin();
+  M5.Log.setLogLevel(m5::log_target_serial, ESP_LOG_VERBOSE);
   {
   	// 無駄がないようにサンプルレートとバッファ長をSamplerの処理と揃えておく
     auto spk_cfg = M5.Speaker.config();
@@ -124,6 +139,12 @@ void setup()
     M5.Speaker.config(spk_cfg);
     M5.Speaker.setVolume(192);
   }
+
+  // ピアノサンプルをPSRAMにコピー
+  printMem();
+  piano_sample_psram = (int16_t *)heap_caps_malloc(64000, MALLOC_CAP_SPIRAM);
+  memcpy(piano_sample_psram, piano_sample, 64000);
+
   M5.Display.startWrite();
   // M5.Display.setRotation(M5.Display.getRotation() ^ 1);
   M5.Display.setTextSize(2);
@@ -142,6 +163,10 @@ void loop()
     M5.Display.println("Processing...");
 
     SamplerOptimized sampler = SamplerOptimized();
+    printMem();
+    M5.Log.printf("piano_sample  : %4x\n", piano_sample);
+    M5.Log.printf("piano_sample_psram  : %4x\n", piano_sample_psram);
+    M5.Log.printf("piano_sample_psram[0]  : %2x\n", piano_sample_psram[0]);
     time_t elapsedTime = benchmark(&sampler);
     
 #if ENABLE_PRINTING
