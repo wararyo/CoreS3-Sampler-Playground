@@ -1,4 +1,5 @@
 #include <SamplerOptimized.h>
+#include <algorithm>
 
 float SamplerOptimized::PitchFromNoteNo(float noteNo, float root)
 {
@@ -48,35 +49,54 @@ void SamplerOptimized::UpdateAdsr(SamplerOptimized::SamplePlayer *player)
 
 void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
-    uint8_t oldestPlayerId = 0;
-    for (uint8_t i = 0; i < MAX_SOUND; i++)
+    if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
+    channels[channel].NoteOn(noteNo, velocity);
+}
+void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
+{
+    // 空いているPlayerを探し、そのPlayerにサンプルをセットする
+    uint_fast8_t oldestPlayerId = 0;
+    for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
-        if (players[i].playing == false)
+        if (sampler->players[i].playing == false)
         {
-            players[i] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+            sampler->players[i] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+            playingNotes.push_back(PlayingNote{noteNo, i});
             return;
         }
         else
         {
-            if (players[i].createdAt < players[oldestPlayerId].createdAt)
+            if (sampler->players[i].createdAt < sampler->players[oldestPlayerId].createdAt)
                 oldestPlayerId = i;
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    players[oldestPlayerId] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+    playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
 }
 void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
-    for (uint8_t i = 0; i < MAX_SOUND; i++)
+    if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
+    channels[channel].NoteOff(noteNo, velocity);
+}
+void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
+{
+    // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
+    for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
     {
-        if (players[i].playing == true && players[i].noteNo == noteNo)
+        if (noteNo == itr->noteNo)
         {
-            players[i].released = true;
+            sampler->players[itr->playerId].released = true;
+            playingNotes.erase(itr);
         }
     }
 }
 
 void SamplerOptimized::SetSample(uint8_t channel, Sample *s)
+{
+    if(channel < CH_COUNT) channels[channel].SetSample(s);
+}
+void SamplerOptimized::Channel::SetSample(Sample *s)
 {
     sample = s;
 }

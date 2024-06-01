@@ -12,6 +12,7 @@
 #define SAMPLE_RATE 48000
 
 #define MAX_SOUND 16 // 最大同時発音数
+#define CH_COUNT 16 // サンプラーはMIDIと同様に16個のチャンネルを持つ
 
 enum SampleAdsr
 {

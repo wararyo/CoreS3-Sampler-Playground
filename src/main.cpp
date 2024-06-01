@@ -69,12 +69,14 @@ uint32_t benchmark(SamplerBase *sampler)
   uint32_t cycle_count = 0;
 
   sampler->SetSample(0, &piano);
+  sampler->SetSample(1, &bass);
   uint32_t processedSamples = 0; // 処理済みのサンプル数
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
   buf_idx = (buf_idx + 1) & 3;
   // 0秒時点の処理
+  // sampler->NoteOn(36, 127, 1); // ベースのド
   sampler->NoteOn(60, 127, 0); // ド
   sampler->NoteOn(64, 127, 0); // ミ
   sampler->NoteOn(67, 127, 0); // ソ
@@ -87,6 +89,7 @@ uint32_t benchmark(SamplerBase *sampler)
   }
 
   // 1秒時点の処理
+  // sampler->NoteOff(36, 127, 1);
   sampler->NoteOff(60, 0, 0);
   sampler->NoteOff(64, 0, 0);
   sampler->NoteOff(67, 0, 0);

@@ -2,6 +2,7 @@
 
 #include <SamplerBase.h>
 #include <Arduino.h>
+#include <list>
 
 class SamplerOptimized : public SamplerBase
 {
@@ -28,6 +29,31 @@ public:
         float pitch = 1.0f;
         enum SampleAdsr adsrState = SampleAdsr::attack;
     };
+    class Channel
+    {
+    public:
+        Channel() {}
+        Channel(SamplerOptimized *sampler) : sampler{sampler} {}
+        void NoteOn(uint8_t noteNo, uint8_t velocity);
+        void NoteOff(uint8_t noteNo, uint8_t velocity);
+        void SetSample(Sample *sample);
+
+    private:
+        SamplerOptimized *sampler;
+        struct PlayingNote
+        {
+            uint8_t noteNo;
+            uint_fast8_t playerId;
+        };
+        struct Sample *sample;               // TODO: 複数のサンプルをセットする
+        std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
+    };
+
+    SamplerOptimized()
+    {
+        for (uint_fast8_t i = 0; i < CH_COUNT; i++)
+            channels[i] = Channel(this);
+    }
     void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
     void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel);
     void SetSample(uint8_t channel, Sample *sample);
@@ -37,9 +63,9 @@ public:
     float masterVolume = 0.25f;
 
 private:
-    struct Sample *sample;
-
+    Channel channels[CH_COUNT]; // コンストラクタで初期化する
     SamplePlayer players[MAX_SOUND] = {SamplePlayer()};
+
     float PitchFromNoteNo(float noteNo, float root);
     void UpdateAdsr(SamplePlayer *player);
 };
