@@ -154,53 +154,40 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
 
             float pitch = player->pitch;
 
-            int32_t loopEnd = sample->length;
-            int32_t loopBack = 0;
-            float gain = player->volume;
-            // adsrEnabledが有効の場合はループポイントとadsrGainを使用する。
-            if (sample->adsrEnabled) {
-                loopEnd = sample->loopEnd;
-                loopBack = sample->loopStart - loopEnd;
-                gain = player->adsrGain;
-            }
+            // adsrEnabledが有効の場合は adsrGain を使用する。
+            float gain = (sample->adsrEnabled) ? player->adsrGain : player->volume;
 
             // gainにマスターボリュームを適用しておく
             gain *= masterVolume;
 
-            // playerのメンバであるposとpos_fをローカル変数にコピーしておく。
-            uint32_t pos = player->pos;
-            float pos_f = player->pos_f;
             auto src = sample->sample;
+            sampler_process_inner_work_t work = {&src[player->pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], player->pos_f, gain, pitch};
+            // 波形生成処理を行う
+            sampler_process_inner(&work, ADSR_UPDATE_SAMPLE_COUNT);
 
-            // ループの残り回数をremainに保持しておく
-            uint32_t remain = ADSR_UPDATE_SAMPLE_COUNT;
-            sampler_process_inner_work_t work = {&src[pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], pos_f, gain, pitch};
+            int32_t loopEnd = sample->length;
+            int32_t loopBack = 0;
+            // adsrEnabledが有効の場合はループポイントを使用する。
+            if (sample->adsrEnabled) {
+                loopEnd = sample->loopEnd;
+                loopBack = sample->loopStart - loopEnd;
+            }
 
-            do {
-                // loopEndに到達するまでに何個サンプル出力できるか求める
-                int32_t length = 1 + ((loopEnd - pos) / pitch);
-                // ループの残り回数を考慮してlengthを調整
-                length = remain < length ? remain : length;
-                // ループ残り回数から今回処理する分を引いておく
-                remain -= length;
+            // 現在のサンプル位置に基づいてposがどこまで進んだか求める
+            uint32_t pos = work.src - src;
 
-                // 波形処理関数を呼び出す。
-                sampler_process_inner(&work, length);
-
-                // 現在のサンプル位置に基づいてposがどこまで進んだか求める
-                pos = work.src - src;
-                if (pos >= loopEnd) {
-                    if (loopBack == 0)
-                    {   // ループポイントが設定されていない場合は再生を停止する
-                        player->playing = false;
-                        break;
-                    }
-                    do {
-                        pos += loopBack;
-                    } while (pos >= loopEnd);
+            // ループポイント or 終端を超えた場合の処理
+            if (pos >= loopEnd) {
+                if (loopBack == 0)
+                {   // ループポイントが設定されていない場合は終端として扱い再生を停止する
+                    player->playing = false;
+                    break;
                 }
-            } while (remain != 0);
-            // ループを終えた後でposとpos_fをplayerに書き戻しておく
+                do {
+                    pos += loopBack;
+                } while (pos >= loopEnd);
+            }
+
             player->pos = pos;
             player->pos_f = work.pos_f;
         }

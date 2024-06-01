@@ -31,28 +31,20 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
   }
 #else
   M5.Speaker.playRaw(output, SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 1, SPK_CH);
-  static int16_t prev_yh[320][2];
+  static int16_t prev_y[320];
   {
-    static int max_y = 0;
-    static int min_y = 1024;
     static int x = 0;
-    static int y1 = 0;
     int dh = M5.Display.height();
     for (uint_fast16_t i = 0; i < SAMPLE_BUFFER_SIZE; i++)
     {
-      M5.Display.writeFastVLine(x, prev_yh[x][0], prev_yh[x][1], TFT_BLACK);
-      int y0 = (dh >> 1) - (output[i] >> 7);
-      if (min_y > y0) { min_y = y0; }
-      if (max_y < y0) { max_y = y0; }
-      int y = y0 < y1 ? y0 : y1;
-      int h = y0 < y1 ? y1 : y0;
-      y1 = y0;
-      h = h - y + 1;
-      M5.Display.writeFastVLine(x, y, h, TFT_WHITE);
-      prev_yh[x][0] = y;
-      prev_yh[x][1] = h;
-      ++x;
-      if (x >= M5.Display.width()) { x = 0; }
+      int y = (dh >> 1) - (output[i] >> 7);
+      int py = prev_y[x];
+      if (py != y) {
+        M5.Display.writeFastVLine(x, py, 2, TFT_BLACK);
+        M5.Display.writeFastVLine(x, y, 2, TFT_WHITE);
+        prev_y[x] = y;
+      }
+      if (++x >= M5.Display.width()) { x = 0; }
     }
   }
 #endif
