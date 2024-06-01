@@ -9,7 +9,11 @@ public:
     struct SamplePlayer
     {
         SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume)
-            : sample{sample}, noteNo{noteNo}, volume{volume}, createdAt{micros()} {}
+            : sample{sample}, noteNo{noteNo}, volume{volume}, createdAt{micros()}
+            {
+                float delta = noteNo - sample->root;
+                pitch = ((pow(2.0f, delta / 12.0f)));
+            }
         SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{micros()} {}
         struct Sample *sample;
         uint8_t noteNo;
@@ -21,6 +25,7 @@ public:
         bool playing = true;
         bool released = false;
         float adsrGain = 0.0f;
+        float pitch = 1.0f;
         enum SampleAdsr adsrState = SampleAdsr::attack;
     };
     void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
