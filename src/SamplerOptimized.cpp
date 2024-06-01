@@ -27,7 +27,7 @@ void SamplerOptimized::UpdateAdsr(SamplerOptimized::SamplePlayer *player)
     case decay:
         goal = sample->sustain * player->volume;
         player->adsrGain = (player->adsrGain - goal) * sample->decay + goal;
-        if ((player->adsrGain - sample->sustain) < 0.01f)
+        if ((player->adsrGain - sample->sustain) < 0.001f)
         {
             player->adsrState = sustain;
             player->adsrGain = goal;
@@ -37,7 +37,7 @@ void SamplerOptimized::UpdateAdsr(SamplerOptimized::SamplePlayer *player)
         break;
     case release:
         player->adsrGain *= sample->release;
-        if (player->adsrGain < 0.01f)
+        if (player->adsrGain < 0.001f)
         {
             player->adsrGain = 0;
             player->playing = false;

@@ -2,20 +2,18 @@
 #include <SamplerBase.h>
 #include <SamplerOptimized.h>
 #include <piano.h>
+#include <bass.h>
 
 #define ENABLE_PRINTING false
 
 static struct Sample piano = Sample{
-    piano_sample,
-    32000,
-    60,
-    26253,
-    26436,
-    true,
-    1.0f,
-    0.998887f,
-    0.1f,
-    0.988885f};
+    piano_sample, 24000, 60,
+    21608, 21975,
+    true, 1.0f, 0.998000f, 0.1f, 0.985000f};
+static struct Sample bass = Sample{
+    bass_sample, 24000, 36,
+    21714, 22448,
+    true, 1.0f, 0.999000f, 0.25f, 0.970000f};
 
 static constexpr const uint8_t SPK_CH = 1;
 
