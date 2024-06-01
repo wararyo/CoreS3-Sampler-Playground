@@ -21,3 +21,7 @@ SerialToWav.pyが待機状態に入ったことを確認したら、M5Stack Core
 やがてCoreS3の画面上に `Processed.` と表示されるので、PC上で Ctrl+C を押してSerialToWav.pyを停止させます。
 
 output.wavが作成されているので、好みの音声エディタで開きます。
+
+## 構成図
+
+![構成図](Diagram.svg)
