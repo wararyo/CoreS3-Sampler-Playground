@@ -53,7 +53,7 @@ void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
     {
         if (players[i].playing == false)
         {
-            players[i] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+            players[i] = SamplerOptimized::SamplePlayer(samples[channel], noteNo, velocity / 127.0f);
             return;
         }
         else
@@ -63,7 +63,7 @@ void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    players[oldestPlayerId] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+    players[oldestPlayerId] = SamplerOptimized::SamplePlayer(samples[channel], noteNo, velocity / 127.0f);
 }
 void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
@@ -78,7 +78,7 @@ void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel
 
 void SamplerOptimized::SetSample(uint8_t channel, Sample *s)
 {
-    sample = s;
+    samples[channel] = s;
 }
 
 // sampler_process_inner の動作時に必要なデータ類をまとめた構造体

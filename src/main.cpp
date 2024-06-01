@@ -6,9 +6,13 @@
 
 #define ENABLE_PRINTING false
 
-int16_t *piano_sample_psram;
+int16_t *piano_sample_psram1;
+int16_t *piano_sample_psram2;
+int16_t *piano_sample_psram3;
 int16_t *sine_sample_sram;
-struct Sample piano;
+struct Sample piano1;
+struct Sample piano2;
+struct Sample piano3;
 struct Sample sine;
 
 static constexpr const uint8_t SPK_CH = 1;
@@ -64,31 +68,29 @@ uint32_t benchmark(SamplerBase *sampler)
 
   uint32_t cycle_count = 0;
 
-  piano = Sample{
-    piano_sample_psram,
-    32000,
-    60,
-    26253,
-    26436,
-    true,
-    1.0f,
-    0.998887f,
-    0.1f,
-    0.988885f};
+  piano1 = Sample{
+      piano_sample_psram1, 32000, 60,
+      26253, 26436,
+      true, 1.0f, 0.998887f, 0.1f, 0.988885f};
+  piano2 = Sample{
+      piano_sample_psram1, 32000, 60,
+      26253, 26436,
+      true, 1.0f, 0.998887f, 0.1f, 0.988885f};
+  piano3 = Sample{
+      piano_sample_psram1, 32000, 60,
+      26253, 26436,
+      true, 1.0f, 0.998887f, 0.1f, 0.988885f};
   sine = Sample{
-    sine_sample_sram,
-    3000,
-    60,
-    1368,
-    1453,
-    true,
-    1.0f,
-    0.998887f,
-    0.1f,
-    0.988885f};
-  M5.Log.printf("piano.sample  : %4x\n", piano.sample);
+      sine_sample_sram, 3000, 60,
+      1368, 1453,
+      true, 1.0f, 0.998887f, 0.1f, 0.988885f};
+  M5.Log.printf("piano1.sample  : %4x\n", piano1.sample);
+  M5.Log.printf("piano2.sample  : %4x\n", piano2.sample);
+  M5.Log.printf("piano3.sample  : %4x\n", piano3.sample);
   M5.Log.printf("sine.sample  : %4x\n", sine.sample);
-  sampler->SetSample(0, &sine);
+  sampler->SetSample(0, &piano1);
+  sampler->SetSample(1, &piano2);
+  sampler->SetSample(2, &piano3);
   uint32_t processedSamples = 0; // 処理済みのサンプル数
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
@@ -96,8 +98,8 @@ uint32_t benchmark(SamplerBase *sampler)
   buf_idx = (buf_idx + 1) & 3;
   // 0秒時点の処理
   sampler->NoteOn(60, 127, 0); // ド
-  sampler->NoteOn(64, 127, 0); // ミ
-  sampler->NoteOn(67, 127, 0); // ソ
+  sampler->NoteOn(64, 127, 1); // ミ
+  sampler->NoteOn(67, 127, 2); // ソ
   uint32_t nextGoal = SAMPLE_RATE * 1;
   while (processedSamples < nextGoal)
   {
@@ -108,8 +110,8 @@ uint32_t benchmark(SamplerBase *sampler)
 
   // 1秒時点の処理
   sampler->NoteOff(60, 0, 0);
-  sampler->NoteOff(64, 0, 0);
-  sampler->NoteOff(67, 0, 0);
+  sampler->NoteOff(64, 0, 1);
+  sampler->NoteOff(67, 0, 2);
   nextGoal = SAMPLE_RATE * 2;
   while (processedSamples < nextGoal)
   {
@@ -156,8 +158,12 @@ void setup()
   }
 
   // ピアノサンプルをPSRAMにコピー
-  piano_sample_psram = (int16_t *)heap_caps_malloc(64000, MALLOC_CAP_SPIRAM);
-  memcpy(piano_sample_psram, piano_sample, 64000);
+  piano_sample_psram1 = (int16_t *)heap_caps_malloc(64000, MALLOC_CAP_SPIRAM);
+  memcpy(piano_sample_psram1, piano_sample, 64000);
+  piano_sample_psram2 = (int16_t *)heap_caps_malloc(64000, MALLOC_CAP_SPIRAM);
+  memcpy(piano_sample_psram2, piano_sample, 64000);
+  piano_sample_psram3 = (int16_t *)heap_caps_malloc(64000, MALLOC_CAP_SPIRAM);
+  memcpy(piano_sample_psram3, piano_sample, 64000);
 
   // サイン派サンプルをPSRAMにコピー
   sine_sample_sram = (int16_t *)heap_caps_malloc(6000, MALLOC_CAP_INTERNAL);
@@ -183,8 +189,8 @@ void loop()
     SamplerOptimized sampler = SamplerOptimized();
     printMem();
     M5.Log.printf("piano_sample  : %4x\n", piano_sample);
-    M5.Log.printf("piano_sample_psram  : %4x\n", piano_sample_psram);
-    M5.Log.printf("piano_sample_psram[0]  : %2x\n", piano_sample_psram[0]);
+    M5.Log.printf("piano_sample_psram1  : %4x\n", piano_sample_psram1);
+    M5.Log.printf("piano_sample_psram1[0]  : %2x\n", piano_sample_psram1[0]);
     M5.Log.printf("sine_sample  : %4x\n", sine_sample);
     M5.Log.printf("sine_sample_sram  : %4x\n", sine_sample_sram);
     M5.Log.printf("sine_sample_sram[0]  : %2x\n", sine_sample_sram[0]);

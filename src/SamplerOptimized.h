@@ -37,7 +37,7 @@ public:
     float masterVolume = 0.25f;
 
 private:
-    struct Sample *sample;
+    struct Sample *samples[3];
 
     SamplePlayer players[MAX_SOUND] = {SamplePlayer()};
     float PitchFromNoteNo(float noteNo, float root);
