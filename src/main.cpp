@@ -7,15 +7,15 @@
 
 static struct Sample piano = Sample{
     piano_sample,
-    32000,
+    24000,
     60,
-    26253,
-    26436,
+    21608,
+    21975,
     true,
     1.0f,
-    0.998887f,
+    0.998000f,
     0.1f,
-    0.988885f};
+    0.985000f};
 
 static constexpr const uint8_t SPK_CH = 1;
 
