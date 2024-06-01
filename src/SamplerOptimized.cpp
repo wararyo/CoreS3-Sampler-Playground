@@ -210,27 +210,35 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
 #if CONFIG_IDF_TARGET_ESP32S3
         // ESP32S3の場合はSIMD命令を使って高速化
         __asm__ (
-        "    loop            %2, LOOP_END           \n"    // ループ開始
-        "    ee.ldf.128.ip   f11,f10,f9, f8, %1, 16 \n"    // 元データ float 4個 読み、a3 アドレスを 16 加算
-        "    ee.ldf.128.ip   f15,f14,f13,f12,%1, 16 \n"    // 元データ float 4個 読み、a3 アドレスを 16 加算
-        "    trunc.s a12, f8, 0                     \n"    //
-        "    trunc.s a13, f9, 0                     \n"    //
-        "    trunc.s a14,f10, 0                     \n"    //
-        "    trunc.s a15,f11, 0                     \n"    //
-        "    s16i    a12, %0, 0                     \n"    //
-        "    s16i    a13, %0, 2                     \n"    //
-        "    s16i    a14,%0,  4                     \n"    //
-        "    s16i    a15,%0,  6                     \n"    //
-        "    trunc.s a12,f12, 0                     \n"    //
-        "    trunc.s a13,f13, 0                     \n"    //
-        "    trunc.s a14,f14, 0                     \n"    //
-        "    trunc.s a15,f15, 0                     \n"    //
-        "    s16i    a12,%0,  8                     \n"    //
-        "    s16i    a13,%0, 10                     \n"    //
-        "    s16i    a14,%0, 12                     \n"    //
-        "    s16i    a15,%0, 14                     \n"    //
-        "    addi    %0, %0, 16                     \n"    //
-        "LOOP_END:                                  \n"    //
+        "   loop            %2, LOOP_END            \n"     // ループ開始
+        "   ee.ldf.128.ip   f11,f10,f9, f8, %1, 16  \n"     // 元データ float 4個 読み、a3 アドレスを 16 加算
+        "   ee.ldf.128.ip   f15,f14,f13,f12,%1, 16  \n"     // 元データ float 4個 読み、a3 アドレスを 16 加算
+        "   trunc.s         a12,f8, 0               \n"     // float 4個を int32_t 4個に変換
+        "   trunc.s         a13,f9, 0               \n"     //
+        "   trunc.s         a14,f10,0               \n"     //
+        "   trunc.s         a15,f11,0               \n"     //
+        "   clamps          a12,a12,15              \n"     // int32_t 4個の値が int16_t の範囲に収まるよう桁溢れを防止
+        "   clamps          a13,a13,15              \n"     //
+        "   clamps          a14,a14,15              \n"     //
+        "   clamps          a15,a15,15              \n"     //
+        "   s16i            a12,%0, 0               \n"     // 出力先に int16_t 4個書き込み
+        "   s16i            a13,%0, 2               \n"     //
+        "   s16i            a14,%0, 4               \n"     //
+        "   s16i            a15,%0, 6               \n"     //
+        "   trunc.s         a12,f12,0               \n"     // float 4個を int32_t 4個に変換
+        "   trunc.s         a13,f13,0               \n"     //
+        "   trunc.s         a14,f14,0               \n"     //
+        "   trunc.s         a15,f15,0               \n"     //
+        "   clamps          a12,a12,15              \n"     // int32_t 4個の値が int16_t の範囲に収まるよう桁溢れを防止
+        "   clamps          a13,a13,15              \n"     //
+        "   clamps          a14,a14,15              \n"     //
+        "   clamps          a15,a15,15              \n"     //
+        "   s16i            a12,%0,  8              \n"     // 出力先に int16_t 4個書き込み
+        "   s16i            a13,%0, 10              \n"     //
+        "   s16i            a14,%0, 12              \n"     //
+        "   s16i            a15,%0, 14              \n"     //
+        "   addi            %0, %0, 16              \n"     //
+        "LOOP_END:                                  \n"     //
         : // output-list 使用せず    // アセンブリ言語からC/C++への受渡しは無し
         : // input-list             // C/C++からアセンブリ言語への受渡し
             "r" ( output ),         //  %0 に変数 output の値を指定
@@ -243,18 +251,18 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
 #else
         auto o = output;
         auto d = data;
-        for (int i = 0; i < SAMPLE_BUFFER_SIZE>>3; i++)
+        for (int i = 0; i < SAMPLE_BUFFER_SIZE>>2; i++)
         { // 1ループあたりの処理回数を増やすことで処理効率を上げる
-            o[0] = d[0];
-            o[1] = d[1];
-            o[2] = d[2];
-            o[3] = d[3];
-            o[4] = d[4];
-            o[5] = d[5];
-            o[6] = d[6];
-            o[7] = d[7];
-            o += 8;
-            d += 8;
+            int32_t d0 = d[0];
+            int32_t d1 = d[1];
+            int32_t d2 = d[2];
+            int32_t d3 = d[3];
+            o[0] = d0 > INT16_MAX ? INT16_MAX : d0 < INT16_MIN ? INT16_MIN : d0;
+            o[1] = d1 > INT16_MAX ? INT16_MAX : d1 < INT16_MIN ? INT16_MIN : d1;
+            o[2] = d2 > INT16_MAX ? INT16_MAX : d2 < INT16_MIN ? INT16_MIN : d2;
+            o[3] = d3 > INT16_MAX ? INT16_MAX : d3 < INT16_MIN ? INT16_MIN : d3;
+            o += 4;
+            d += 4;
         }
 #endif
     }
