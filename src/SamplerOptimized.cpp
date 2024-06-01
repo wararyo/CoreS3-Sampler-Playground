@@ -144,7 +144,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         if (player->playing == false)
             continue;
 
-        for (int j = 0; j < SAMPLE_BUFFER_SIZE / ADSR_UPDATE_SAMPLE_COUNT; j++)
+        for (uint_fast8_t j = 0; j < SAMPLE_BUFFER_SIZE / ADSR_UPDATE_SAMPLE_COUNT; j++)
         {
             Sample *sample = player->sample;
             if (sample->adsrEnabled)
@@ -152,7 +152,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
             if (player->playing == false)
                 break;
 
-            float pitch = PitchFromNoteNo(player->noteNo, player->sample->root);
+            float pitch = player->pitch;
 
             int32_t loopEnd = sample->length;
             int32_t loopBack = 0;
