@@ -1,8 +1,13 @@
 #include <M5Unified.h>
 #include <SamplerBase.h>
 #include <SamplerOptimized.h>
+
 #include <piano.h>
 #include <bass.h>
+
+// 再生したい曲によってどちらか一方をインポートする
+// #include <song/simple.h>
+#include <song/neko.h>
 
 #define ENABLE_PRINTING false
 
@@ -62,38 +67,48 @@ uint32_t benchmark(SamplerBase *sampler)
 
   sampler->SetSample(0, &piano);
   sampler->SetSample(1, &bass);
-  uint32_t processedSamples = 0; // 処理済みのサンプル数
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
   buf_idx = (buf_idx + 1) & 3;
-  // 0秒時点の処理
-  // sampler->NoteOn(36, 127, 1); // ベースのド
-  sampler->NoteOn(60, 127, 0); // ド
-  sampler->NoteOn(64, 127, 0); // ミ
-  sampler->NoteOn(67, 127, 0); // ソ
-  uint32_t nextGoal = SAMPLE_RATE * 1;
-  while (processedSamples < nextGoal)
-  {
-    cycle_count += process(sampler, output[buf_idx]);
-    buf_idx = (buf_idx + 1) & 3;
-    processedSamples += SAMPLE_BUFFER_SIZE;
-  }
 
-  // 1秒時点の処理
-  // sampler->NoteOff(36, 127, 1);
-  sampler->NoteOff(60, 0, 0);
-  sampler->NoteOff(64, 0, 0);
-  sampler->NoteOff(67, 0, 0);
-  nextGoal = SAMPLE_RATE * 2;
-  while (processedSamples < nextGoal)
+  uint32_t processedSamples = 0;   // 処理済みのサンプル数
+  const MidiMessage *nextMessage = song; // 次に処理するべきMIDIメッセージ
+  uint32_t nextGoal = nextMessage->time;
+  bool hasReachedEndOfSong = false; // 多重ループを抜けるために使用
+  while (processedSamples < 2880000) // 長すぎる曲は途中で打ち切る
   {
-    cycle_count += process(sampler, output[buf_idx]);
-    buf_idx = (buf_idx + 1) & 3;
-    processedSamples += SAMPLE_BUFFER_SIZE;
-  }
+    // MIDIメッセージを処理する
+    while (processedSamples >= nextGoal)
+    {
+      if ((nextMessage->status & 0xF0) == 0x90)
+      {
+        sampler->NoteOn(nextMessage->data1, nextMessage->data2, nextMessage->status & 0x0F);
+      }
+      else if ((nextMessage->status & 0xF0) == 0x80)
+      {
+        sampler->NoteOff(nextMessage->data1, nextMessage->data2, nextMessage->status & 0x0F);
+      }
+      if (nextMessage->status == 0xFF && nextMessage->data1 == 0x2F && nextMessage->data2 == 0x00)
+      {
+        // 0xFF, 0x2F, 0x00 は曲の終わりを意味する
+        hasReachedEndOfSong = true;
+        break;
+      }
+      nextMessage++;
+      nextGoal = nextMessage->time;
+    }
+    if (hasReachedEndOfSong)
+      break;
 
-  // 2秒で終了
+    // 音声処理を進める
+    while (processedSamples < nextGoal)
+    {
+      cycle_count += process(sampler, output[buf_idx]);
+      buf_idx = (buf_idx + 1) & 3;
+      processedSamples += SAMPLE_BUFFER_SIZE;
+    }
+  }
 
   while (M5.Speaker.isPlaying()) {
     M5.delay(1);
