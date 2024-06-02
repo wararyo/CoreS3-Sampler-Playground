@@ -84,9 +84,14 @@ void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
     for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
     {
-        if (noteNo == itr->noteNo)
+        if (itr->noteNo == noteNo)
         {
-            sampler->players[itr->playerId].released = true;
+            SamplePlayer *player = &(sampler->players[itr->playerId]);
+            // 発音後に同時発音数制限によって発音が止められていなければ、発音を終わらせる
+            // TODO: 本当はユニークID的なものを設けるべきだが、
+            //       とりあえずnoteNoが合ってれば高確率で該当の発音でしょうという判断をしています
+            if (player->noteNo == noteNo)
+                player->released = true;
             playingNotes.erase(itr);
         }
     }
