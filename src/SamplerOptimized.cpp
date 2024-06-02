@@ -257,6 +257,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         auto d = data;
         for (int i = 0; i < SAMPLE_BUFFER_SIZE>>2; i++)
         { // 1ループあたりの処理回数を増やすことで処理効率を上げる
+          // float から int32_t への変換。この処理は内部でtrunc.sが使用され、int32_tの範囲に収まるように桁溢れが防止される。
             int32_t d1 = d[1];
             int32_t d0 = d[0];
             int32_t d3 = d[3];
