@@ -4,7 +4,7 @@
 
 typedef struct MidiMessage m;
 
-const MidiMessage song[] = {
+extern const struct MidiMessage simple_song[] = {
 m{0,0x90,60,127},
 m{0,0x90,64,127},
 m{0,0x90,67,127},

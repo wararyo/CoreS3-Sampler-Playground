@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 struct MidiMessage
 {
     uint32_t time;

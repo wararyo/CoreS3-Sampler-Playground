@@ -1,15 +1,14 @@
 #include <M5Unified.h>
 #include <SamplerBase.h>
 #include <SamplerOptimized.h>
-
-#include <piano.h>
-#include <bass.h>
-
-// 再生したい曲によってどちらか一方をインポートする
-// #include <song/simple.h>
-#include <song/neko.h>
+#include <MidiMessage.h>
 
 #define ENABLE_PRINTING false
+
+extern const MidiMessage simple_song[];
+extern const MidiMessage neko_song[];
+extern const int16_t piano_sample[24000];
+extern const int16_t bass_sample[24000];
 
 static struct Sample piano = Sample{
     piano_sample, 24000, 60,
@@ -57,7 +56,7 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
   return cycle;
 }
 
-uint32_t benchmark(SamplerBase *sampler)
+uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
 {
   // M5.Speakerに渡すバッファとして4つ用意する。(3個あればよいが循環処理をしやすくするため4個とした)
   int16_t output[4][SAMPLE_BUFFER_SIZE] = {0};
@@ -150,7 +149,7 @@ void loop()
     M5.Display.println("Processing...");
 
     SamplerOptimized sampler = SamplerOptimized();
-    time_t elapsedTime = benchmark(&sampler);
+    time_t elapsedTime = benchmark(&sampler, simple_song);
     
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");

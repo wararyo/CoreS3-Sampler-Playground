@@ -18,8 +18,9 @@ import time
 parser = argparse.ArgumentParser(description = "Serial to wav converter")
 
 parser.add_argument("--input", type=str, default="input.mid", help = "Input midi file. Default is output.wav")
-parser.add_argument("--output", type=str, default="song.c", help = "Output destination. Default is song.c")
+parser.add_argument("--output", type=str, default="song.cpp", help = "Output destination. Default is song.c")
 parser.add_argument("--sample_rate", type=int, default=48000, help = "Sample rate. Default is 48000")
+parser.add_argument("--song_name", type=str, default="song", help = "Song name. Default is 48000")
 
 args = parser.parse_args()
 
@@ -27,6 +28,7 @@ args = parser.parse_args()
 input_file_name = args.input
 output_file_name = args.output
 sample_rate = args.sample_rate
+song_name = args.song_name
 
 midi = mido.MidiFile(input_file_name)
 output_file = open(output_file_name, mode='w')
@@ -42,7 +44,7 @@ output_file.writelines([
     "\n",
     "typedef struct MidiMessage m;\n",
     "\n",
-    "const MidiMessage song[] = {\n"
+    f"extern const struct MidiMessage {song_name}[] = {{\n"
     ])
 
 for msg in midi.merged_track:
