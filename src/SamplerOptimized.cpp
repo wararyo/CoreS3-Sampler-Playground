@@ -178,7 +178,8 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
             float gain = (sample->adsrEnabled) ? player->adsrGain : player->volume;
 
             // gainにマスターボリュームを適用しておく
-            gain *= masterVolume;
+            // 後処理で float から int16_t への変換時処理を行う際の高速化の都合で、事前に 65536倍しておく
+            gain *= masterVolume * 65536;
 
             auto src = sample->sample;
             sampler_process_inner_work_t work = {&src[player->pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], player->pos_f, gain, pitch};
@@ -220,30 +221,26 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         "   loop            %2, LOOP_END            \n"     // ループ開始
         "   ee.ldf.128.ip   f11,f10,f9, f8, %1, 16  \n"     // 元データ float 4個 読み、a3 アドレスを 16 加算
         "   ee.ldf.128.ip   f15,f14,f13,f12,%1, 16  \n"     // 元データ float 4個 読み、a3 アドレスを 16 加算
-        "   trunc.s         a12,f8, 0               \n"     // float 4個を int32_t 4個に変換
+        "   trunc.s         a12,f8, 0               \n"     // float 4個を int32_t 4個に変換する
+        "   trunc.s         a14,f10,0               \n"     // trunc.s は int32_t の範囲に収まるよう桁溢れ防止が行われる。
         "   trunc.s         a13,f9, 0               \n"     //
-        "   trunc.s         a14,f10,0               \n"     //
         "   trunc.s         a15,f11,0               \n"     //
-        "   clamps          a12,a12,15              \n"     // int32_t 4個の値が int16_t の範囲に収まるよう桁溢れを防止
-        "   clamps          a13,a13,15              \n"     //
-        "   clamps          a14,a14,15              \n"     //
-        "   clamps          a15,a15,15              \n"     //
-        "   s16i            a12,%0, 0               \n"     // 出力先に int16_t 4個書き込み
-        "   s16i            a13,%0, 2               \n"     //
+        "   srli            a12,a12,16              \n"     // 偶数indexの値について 右16bitシフトし int16_t 化する
+        "   srli            a14,a14,16              \n"     //
+        "   s32i            a13,%0, 0               \n"     // 奇数indexの値を先に 32bit のまま偶数位置へ出力する。
+        "   s32i            a15,%0, 4               \n"     // これにより右シフト処理を省略できる
+        "   s16i            a12,%0, 0               \n"     // 先ほど奇数indexの値を出力した場所に 16bit 化した偶数indexの値を出力して上書きする。
         "   s16i            a14,%0, 4               \n"     //
-        "   s16i            a15,%0, 6               \n"     //
         "   trunc.s         a12,f12,0               \n"     // float 4個を int32_t 4個に変換
-        "   trunc.s         a13,f13,0               \n"     //
         "   trunc.s         a14,f14,0               \n"     //
+        "   trunc.s         a13,f13,0               \n"     //
         "   trunc.s         a15,f15,0               \n"     //
-        "   clamps          a12,a12,15              \n"     // int32_t 4個の値が int16_t の範囲に収まるよう桁溢れを防止
-        "   clamps          a13,a13,15              \n"     //
-        "   clamps          a14,a14,15              \n"     //
-        "   clamps          a15,a15,15              \n"     //
-        "   s16i            a12,%0,  8              \n"     // 出力先に int16_t 4個書き込み
-        "   s16i            a13,%0, 10              \n"     //
+        "   srli            a12,a12,16              \n"     // 偶数indexの値について 右16bitシフトし int16_t 化する
+        "   srli            a14,a14,16              \n"     //
+        "   s32i            a13,%0, 8               \n"     // 奇数indexの値を先に 32bit のまま偶数位置へ出力する。
+        "   s32i            a15,%0, 12              \n"     // これにより右シフト処理を省略できる
+        "   s16i            a12,%0, 8               \n"     // 先ほど奇数indexの値を出力した場所に 16bit 化した偶数indexの値を出力して上書きする。
         "   s16i            a14,%0, 12              \n"     //
-        "   s16i            a15,%0, 14              \n"     //
         "   addi            %0, %0, 16              \n"     //
         "LOOP_END:                                  \n"     //
         : // output-list 使用せず    // アセンブリ言語からC/C++への受渡しは無し
@@ -260,14 +257,15 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         auto d = data;
         for (int i = 0; i < SAMPLE_BUFFER_SIZE>>2; i++)
         { // 1ループあたりの処理回数を増やすことで処理効率を上げる
-            int32_t d0 = d[0];
+          // float から int32_t への変換。この処理は内部でtrunc.sが使用され、int32_tの範囲に収まるように桁溢れが防止される。
             int32_t d1 = d[1];
-            int32_t d2 = d[2];
+            int32_t d0 = d[0];
             int32_t d3 = d[3];
-            o[0] = d0 > INT16_MAX ? INT16_MAX : d0 < INT16_MIN ? INT16_MIN : d0;
-            o[1] = d1 > INT16_MAX ? INT16_MAX : d1 < INT16_MIN ? INT16_MIN : d1;
-            o[2] = d2 > INT16_MAX ? INT16_MAX : d2 < INT16_MIN ? INT16_MIN : d2;
-            o[3] = d3 > INT16_MAX ? INT16_MAX : d3 < INT16_MIN ? INT16_MIN : d3;
+            int32_t d2 = d[2];
+            ((uint32_t*)o)[0] = d1;
+            o[0] = d0 >> 16;
+            ((uint32_t*)o)[1] = d3;
+            o[2] = d2 >> 16;
             o += 4;
             d += 4;
         }
