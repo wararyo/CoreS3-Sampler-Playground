@@ -108,31 +108,33 @@ void SamplerOptimized::Channel::SetTimbre(Timbre *t)
 
 // sampler_process_inner の動作時に必要なデータ類をまとめた構造体
 // アセンブリ言語からアクセスするのでメンバの順序を変えないこと
-struct sampler_process_inner_work_t {
-    const int16_t* src;
-    float* dst;
+struct sampler_process_inner_work_t
+{
+    const int16_t *src;
+    float *dst;
     float pos_f;
     float gain;
     float pitch;
 };
 
-extern "C" {
-// アセンブリ言語版を呼び出すための関数宣言
-// これをコメントアウトすると、アセンブリ言語版は呼ばれなくなり、C/C++版が呼ばれる
-    void sampler_process_inner(sampler_process_inner_work_t* work, uint32_t length);
+extern "C"
+{
+    // アセンブリ言語版を呼び出すための関数宣言
+    // これをコメントアウトすると、アセンブリ言語版は呼ばれなくなり、C/C++版が呼ばれる
+    void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length);
 }
 
 // アセンブリ言語版と同様の処理を行うC/C++版の実装
 // weak属性を付けることで、アセンブリ言語版があればそちらを使う
-__attribute((weak, optimize("-O3")))
-void sampler_process_inner(sampler_process_inner_work_t* work, uint32_t length)
+__attribute((weak, optimize("-O3"))) void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length)
 {
-    const int16_t* s = work->src;
-    float* d = work->dst;
+    const int16_t *s = work->src;
+    float *d = work->dst;
     float pos_f = work->pos_f;
     float gain = work->gain;
     float pitch = work->pitch;
-    do {
+    do
+    {
         int32_t s0 = s[0];
         int32_t s1 = s[1];
         // 2点間の差分にpos_fを掛けて補間
@@ -194,7 +196,8 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
             int32_t loopEnd = sample->length;
             int32_t loopBack = 0;
             // adsrEnabledが有効の場合はループポイントを使用する。
-            if (sample->adsrEnabled) {
+            if (sample->adsrEnabled)
+            {
                 loopEnd = sample->loopEnd;
                 loopBack = sample->loopStart - loopEnd;
             }
@@ -203,13 +206,15 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
             uint32_t pos = work.src - src;
 
             // ループポイント or 終端を超えた場合の処理
-            if (pos >= loopEnd) {
+            if (pos >= loopEnd)
+            {
                 if (loopBack == 0)
-                {   // ループポイントが設定されていない場合は終端として扱い再生を停止する
+                { // ループポイントが設定されていない場合は終端として扱い再生を停止する
                     player->playing = false;
                     break;
                 }
-                do {
+                do
+                {
                     pos += loopBack;
                 } while (pos >= loopEnd);
             }
@@ -260,16 +265,16 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
 #else
         auto o = output;
         auto d = data;
-        for (int i = 0; i < SAMPLE_BUFFER_SIZE>>2; i++)
+        for (int i = 0; i < SAMPLE_BUFFER_SIZE >> 2; i++)
         { // 1ループあたりの処理回数を増やすことで処理効率を上げる
           // float から int32_t への変換。この処理は内部でtrunc.sが使用され、int32_tの範囲に収まるように桁溢れが防止される。
             int32_t d1 = d[1];
             int32_t d0 = d[0];
             int32_t d3 = d[3];
             int32_t d2 = d[2];
-            ((uint32_t*)o)[0] = d1;
+            ((uint32_t *)o)[0] = d1;
             o[0] = d0 >> 16;
-            ((uint32_t*)o)[1] = d3;
+            ((uint32_t *)o)[1] = d3;
             o[2] = d2 >> 16;
             o += 4;
             d += 4;

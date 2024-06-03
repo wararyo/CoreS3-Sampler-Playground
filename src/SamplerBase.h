@@ -9,11 +9,11 @@
 
 // 1回の波形生成処理で出力するサンプル数 (ADSR_UPDATE_SAMPLE_COUNT の倍数であること)
 // ※ この数値が大きいほど、波形生成処理の効率が向上しますが、操作してから発音されるまでのレイテンシが増加します
-#define SAMPLE_BUFFER_SIZE ( ADSR_UPDATE_SAMPLE_COUNT * 2 )
+#define SAMPLE_BUFFER_SIZE (ADSR_UPDATE_SAMPLE_COUNT * 2)
 #define SAMPLE_RATE 48000
 
 #define MAX_SOUND 16 // 最大同時発音数
-#define CH_COUNT 16 // サンプラーはMIDIと同様に16個のチャンネルを持つ
+#define CH_COUNT 16  // サンプラーはMIDIと同様に16個のチャンネルを持つ
 
 enum SampleAdsr
 {
@@ -57,6 +57,7 @@ public:
     // 指定したノートナンバーとベロシティが範囲に含まれているサンプルを返す
     // 該当するサンプルがない場合はnullptrを返す
     Sample *GetAppropriateSample(uint8_t noteNo, uint8_t velocity);
+
 private:
     // サンプルの集合
     // 下記の制約をすべて満たしているものとします
@@ -69,11 +70,11 @@ private:
 class SamplerBase
 {
 public:
-    virtual void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)=0;
-    virtual void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)=0;
+    virtual void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel) = 0;
+    virtual void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel) = 0;
     virtual void SetTimbre(uint8_t channel, Timbre *timbre);
 
     // SAMPLE_BUFFER_SIZE分の音声処理を進めます
     // outputの配列数はSAMPLE_BUFFER_SIZEと同じかそれ以上である必要があります
-    virtual void Process(int16_t *output)=0;
+    virtual void Process(int16_t *output) = 0;
 };

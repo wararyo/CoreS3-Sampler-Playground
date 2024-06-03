@@ -28,9 +28,9 @@ static constexpr const uint8_t SPK_CH = 1;
 uint32_t process(SamplerBase *sampler, int16_t *output)
 {
   uint32_t cycle_begin, cycle_end;
-  __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_begin) ); // 処理前のCPUサイクル値を取得
+  __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_begin)); // 処理前のCPUサイクル値を取得
   sampler->Process(output);
-  __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_end) ); // 処理後のCPUサイクル値を取得
+  __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_end)); // 処理後のCPUサイクル値を取得
   uint32_t cycle = cycle_end - cycle_begin;
 #if ENABLE_PRINTING
   for (uint_fast16_t i; i < SAMPLE_BUFFER_SIZE; i++)
@@ -47,7 +47,8 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
     {
       int y = (dh >> 1) - (output[i] >> 7);
       int py = prev_y[x];
-      if (py != y) {
+      if (py != y)
+      {
         M5.Display.writeFastVLine(x, py, 2, TFT_BLACK);
         M5.Display.writeFastVLine(x, y, 2, TFT_WHITE);
         prev_y[x] = y;
@@ -75,10 +76,10 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
   buf_idx = (buf_idx + 1) & 3;
 
-  uint32_t processedSamples = 0;   // 処理済みのサンプル数
+  uint32_t processedSamples = 0;         // 処理済みのサンプル数
   const MidiMessage *nextMessage = song; // 次に処理するべきMIDIメッセージ
   uint32_t nextGoal = nextMessage->time;
-  bool hasReachedEndOfSong = false; // 多重ループを抜けるために使用
+  bool hasReachedEndOfSong = false;  // 多重ループを抜けるために使用
   while (processedSamples < 2880000) // 長すぎる曲は途中で打ち切る
   {
     // MIDIメッセージを処理する
@@ -113,7 +114,8 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
     }
   }
 
-  while (M5.Speaker.isPlaying()) {
+  while (M5.Speaker.isPlaying())
+  {
     M5.delay(1);
   }
 
@@ -125,7 +127,7 @@ void setup()
 {
   M5.begin();
   {
-  	// 無駄がないようにサンプルレートとバッファ長をSamplerの処理と揃えておく
+    // 無駄がないようにサンプルレートとバッファ長をSamplerの処理と揃えておく
     auto spk_cfg = M5.Speaker.config();
     spk_cfg.sample_rate = SAMPLE_RATE;
     spk_cfg.task_pinned_core = PRO_CPU_NUM;
@@ -149,7 +151,7 @@ void loop()
   if (touch.wasClicked() && touch.base_y < M5.Display.height())
   {
     M5.Display.clear();
-    M5.Display.setCursor(0,0);
+    M5.Display.setCursor(0, 0);
     M5.Display.println("Processing...");
 
     SamplerOptimized sampler = SamplerOptimized();
