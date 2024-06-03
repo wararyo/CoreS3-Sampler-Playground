@@ -38,11 +38,7 @@ accumulated_time = 0
 tempo = 500000 # MIDIのテンポはマイクロ秒/ビートなのでBPM120は500000
 
 output_file.writelines([
-    "#pragma once\n",
-    "\n",
     "#include <MidiMessage.h>\n",
-    "\n",
-    "typedef struct MidiMessage m;\n",
     "\n",
     f"extern const struct MidiMessage {song_name}[] = {{\n"
     ])
@@ -54,10 +50,10 @@ for msg in midi.merged_track:
             tempo = msg.tempo
         elif msg.type == 'end_of_track':
             accumulated_time += sample_rate # 曲終わりに1秒の余韻を設ける
-            output_file.write(f"m{{{round(accumulated_time)},0x{msg.hex(',0x')}}}\n")
+            output_file.write(f"{{{round(accumulated_time)},0x{msg.hex(',0x')}}}\n")
             break
     else:
-        output_file.write(f"m{{{round(accumulated_time)},0x{msg.hex(',0x')}}},\n")
+        output_file.write(f"{{{round(accumulated_time)},0x{msg.hex(',0x')}}},\n")
 
 output_file.write("};")
 output_file.close()
