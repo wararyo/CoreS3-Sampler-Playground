@@ -2,22 +2,26 @@
 #include <SamplerBase.h>
 #include <SamplerOptimized.h>
 #include <MidiMessage.h>
+#include <vector>
 
 #define ENABLE_PRINTING false
 
 extern const MidiMessage simple_song[];
 extern const MidiMessage neko_song[];
-extern const int16_t piano_sample[24000];
-extern const int16_t bass_sample[24000];
+extern const int16_t piano_data[24000];
+extern const int16_t bass_data[24000];
 
-static struct Sample piano = Sample{
-    piano_sample, 24000, 60,
+static struct Sample pianoSample = Sample{
+    piano_data, 24000, 60,
     21608, 21975,
     true, 1.0f, 0.998000f, 0.1f, 0.985000f};
-static struct Sample bass = Sample{
-    bass_sample, 24000, 36,
+static struct Sample bassSample = Sample{
+    bass_data, 24000, 36,
     21714, 22448,
     true, 1.0f, 0.999000f, 0.25f, 0.970000f};
+
+static Timbre piano = Timbre({{&pianoSample, 0, 127, 0, 127}});
+static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
 
 static constexpr const uint8_t SPK_CH = 1;
 
@@ -64,8 +68,8 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
 
   uint32_t cycle_count = 0;
 
-  sampler->SetSample(0, &piano);
-  sampler->SetSample(1, &bass);
+  sampler->SetTimbre(0, &piano);
+  sampler->SetTimbre(1, &bass);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);

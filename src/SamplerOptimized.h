@@ -7,6 +7,7 @@
 class SamplerOptimized : public SamplerBase
 {
 public:
+    // 与えられたサンプルを再生する
     struct SamplePlayer
     {
         SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume)
@@ -29,6 +30,8 @@ public:
         float pitch = 1.0f;
         enum SampleAdsr adsrState = SampleAdsr::attack;
     };
+
+    // MIDI規格のチャンネルに対応する概念
     class Channel
     {
     public:
@@ -36,16 +39,16 @@ public:
         Channel(SamplerOptimized *sampler) : sampler{sampler} {}
         void NoteOn(uint8_t noteNo, uint8_t velocity);
         void NoteOff(uint8_t noteNo, uint8_t velocity);
-        void SetSample(Sample *sample);
+        void SetTimbre(Timbre *timbre);
 
     private:
-        SamplerOptimized *sampler;
+        SamplerOptimized *sampler; // 親サンプラー
         struct PlayingNote
         {
             uint8_t noteNo;
             uint_fast8_t playerId;
         };
-        struct Sample *sample;               // TODO: 複数のサンプルをセットする
+        Timbre *timbre;
         std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
     };
 
@@ -56,7 +59,7 @@ public:
     }
     void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
     void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel);
-    void SetSample(uint8_t channel, Sample *sample);
+    void SetTimbre(uint8_t channel, Timbre *timbre);
 
     void Process(int16_t *output);
 

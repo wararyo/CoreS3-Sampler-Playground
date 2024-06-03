@@ -60,7 +60,7 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     {
         if (sampler->players[i].playing == false)
         {
-            sampler->players[i] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+            sampler->players[i] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f);
             playingNotes.push_back(PlayingNote{noteNo, i});
             return;
         }
@@ -71,7 +71,7 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(sample, noteNo, velocity / 127.0f);
+    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
 }
 void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
@@ -97,13 +97,13 @@ void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
     }
 }
 
-void SamplerOptimized::SetSample(uint8_t channel, Sample *s)
+void SamplerOptimized::SetTimbre(uint8_t channel, Timbre *t)
 {
-    if(channel < CH_COUNT) channels[channel].SetSample(s);
+    if(channel < CH_COUNT) channels[channel].SetTimbre(t);
 }
-void SamplerOptimized::Channel::SetSample(Sample *s)
+void SamplerOptimized::Channel::SetTimbre(Timbre *t)
 {
-    sample = s;
+    timbre = t;
 }
 
 // sampler_process_inner の動作時に必要なデータ類をまとめた構造体
