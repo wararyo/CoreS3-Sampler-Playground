@@ -8,8 +8,12 @@
 
 extern const MidiMessage simple_song[];
 extern const MidiMessage neko_song[];
+extern const MidiMessage threepiece_song[];
 extern const int16_t piano_data[24000];
 extern const int16_t bass_data[24000];
+extern const int16_t kick_data[12000];
+extern const int16_t hihat_data[3200];
+extern const int16_t snare_data[12000];
 
 static struct Sample pianoSample = Sample{
     piano_data, 24000, 60,
@@ -19,9 +23,26 @@ static struct Sample bassSample = Sample{
     bass_data, 24000, 36,
     21714, 22448,
     true, 1.0f, 0.999000f, 0.25f, 0.970000f};
+static struct Sample kickSample = Sample{
+    kick_data, 12000, 36,
+    0, 0,
+    false, 0, 0, 0, 0};
+static struct Sample hihatSample = Sample{
+    hihat_data, 3200, 42,
+    0, 0,
+    false, 0, 0, 0, 0};
+static struct Sample snareSample = Sample{
+    snare_data, 12000, 38,
+    0, 0,
+    false, 0, 0, 0, 0};
 
 static Timbre piano = Timbre({{&pianoSample, 0, 127, 0, 127}});
 static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
+static Timbre drumset = Timbre({
+  {&kickSample, 36, 36, 0, 127},
+  {&snareSample, 38, 38, 0, 127},
+  {&hihatSample, 42, 42, 0, 127}
+});
 
 static constexpr const uint8_t SPK_CH = 1;
 
@@ -71,6 +92,7 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
 
   sampler->SetTimbre(0, &piano);
   sampler->SetTimbre(1, &bass);
+  sampler->SetTimbre(10, &drumset);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
