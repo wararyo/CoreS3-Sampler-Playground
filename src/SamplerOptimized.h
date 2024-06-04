@@ -11,8 +11,8 @@ public:
     class SamplePlayer
     {
     public:
-        SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume)
-            : sample{sample}, noteNo{noteNo}, volume{volume}, createdAt{micros()}
+        SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume, float pitchBend)
+            : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{micros()}
         {
             UpdatePitch();
             gain = volume;
@@ -45,6 +45,7 @@ public:
         Channel(SamplerOptimized *sampler) : sampler{sampler} {}
         void NoteOn(uint8_t noteNo, uint8_t velocity);
         void NoteOff(uint8_t noteNo, uint8_t velocity);
+        void PitchBend(int16_t pitchBend);
         void SetTimbre(Timbre *timbre);
 
     private:
@@ -55,6 +56,7 @@ public:
             uint_fast8_t playerId;
         };
         Timbre *timbre;
+        float pitchBend = 0.0f;
         std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
     };
 
@@ -65,6 +67,7 @@ public:
     }
     void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
     void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel);
+    void PitchBend(int16_t pitchBend, uint8_t channel);
     void SetTimbre(uint8_t channel, Timbre *timbre);
 
     void Process(int16_t *output);

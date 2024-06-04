@@ -115,6 +115,12 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
       {
         sampler->NoteOff(nextMessage->data1, nextMessage->data2, nextMessage->status & 0x0F);
       }
+      else if ((nextMessage->status & 0xF0) == 0xE0)
+      {
+        uint_fast16_t rawValue = (nextMessage->data2 & 0b01111111) << 7 | (nextMessage->data1 & 0b01111111);
+        int16_t value = rawValue - 8192;
+        sampler->PitchBend(value, nextMessage->status & 0x0F);
+      }
       if (nextMessage->status == 0xFF && nextMessage->data1 == 0x2F && nextMessage->data2 == 0x00)
       {
         // 0xFF, 0x2F, 0x00 は曲の終わりを意味する

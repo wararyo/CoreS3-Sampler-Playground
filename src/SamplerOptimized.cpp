@@ -3,8 +3,8 @@
 
 void SamplerOptimized::SamplePlayer::UpdatePitch()
 {
-    float delta = noteNo - sample->root;
-    pitch = ((pow(2.0f, delta / 12.0f)));
+    float delta = noteNo - sample->root + pitchBend;
+    pitch = ((powf(2.0f, delta / 12.0f)));
 }
 
 void SamplerOptimized::SamplePlayer::UpdateGain()
@@ -64,7 +64,7 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     {
         if (sampler->players[i].playing == false)
         {
-            sampler->players[i] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f);
+            sampler->players[i] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f, pitchBend);
             playingNotes.push_back(PlayingNote{noteNo, i});
             return;
         }
@@ -75,7 +75,7 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f);
+    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f, pitchBend);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
 }
 void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
@@ -98,6 +98,23 @@ void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
                 player->released = true;
             playingNotes.erase(itr);
         }
+    }
+}
+
+void SamplerOptimized::PitchBend(int16_t pitchBend, uint8_t channel)
+{
+    if(channel < CH_COUNT) channels[channel].PitchBend(pitchBend);
+}
+void SamplerOptimized::Channel::PitchBend(int16_t b)
+{
+    pitchBend = b * 12.0f / 8192.0f;
+    // 既に発音中のノートに対してピッチベンドを適用する
+    for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
+    {
+        // TODO: 同時発音数制限によって発音が止められて別の音が流れている場合は動作がおかしくなるので修正すべき
+        SamplePlayer *player = &(sampler->players[itr->playerId]);
+        player->pitchBend = pitchBend;
+        player->UpdatePitch();
     }
 }
 

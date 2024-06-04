@@ -72,6 +72,8 @@ class SamplerBase
 public:
     virtual void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel) = 0;
     virtual void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel) = 0;
+    // ピッチベンドを-8192から+8191の範囲で指定する
+    virtual void PitchBend(int16_t pitchBend, uint8_t channel) = 0;
     virtual void SetTimbre(uint8_t channel, Timbre *timbre);
 
     // SAMPLE_BUFFER_SIZE分の音声処理を進めます
