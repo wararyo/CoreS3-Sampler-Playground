@@ -8,13 +8,14 @@ class SamplerOptimized : public SamplerBase
 {
 public:
     // 与えられたサンプルを再生する
-    struct SamplePlayer
+    class SamplePlayer
     {
+    public:
         SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume)
             : sample{sample}, noteNo{noteNo}, volume{volume}, createdAt{micros()}
         {
-            float delta = noteNo - sample->root;
-            pitch = ((pow(2.0f, delta / 12.0f)));
+            UpdatePitch();
+            gain = volume;
         }
         SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{micros()} {}
         struct Sample *sample;
@@ -22,13 +23,18 @@ public:
         float pitchBend = 0;
         float volume;
         unsigned long createdAt = 0;
+        bool released = false;
+
+        bool playing = true;
         uint32_t pos = 0;
         float pos_f = 0.0f;
-        bool playing = true;
-        bool released = false;
-        float adsrGain = 0.0f;
-        float pitch = 1.0f;
+        float gain = 0.0f; // volumeとADSR処理により算出される値
+        float pitch = 1.0f; // noteNoとpitchBendにより算出される値
         enum SampleAdsr adsrState = SampleAdsr::attack;
+
+        void UpdateGain();
+        void UpdatePitch();
+    private:
     };
 
     // MIDI規格のチャンネルに対応する概念
@@ -68,7 +74,4 @@ public:
 private:
     Channel channels[CH_COUNT]; // コンストラクタで初期化する
     SamplePlayer players[MAX_SOUND] = {SamplePlayer()};
-
-    float PitchFromNoteNo(float noteNo, float root);
-    void UpdateAdsr(SamplePlayer *player);
 };

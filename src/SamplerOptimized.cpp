@@ -1,47 +1,51 @@
 #include <SamplerOptimized.h>
 #include <algorithm>
 
-float SamplerOptimized::PitchFromNoteNo(float noteNo, float root)
+void SamplerOptimized::SamplePlayer::UpdatePitch()
 {
-    float delta = noteNo - root;
-    float f = ((pow(2.0f, delta / 12.0f)));
-    return f;
+    float delta = noteNo - sample->root;
+    pitch = ((pow(2.0f, delta / 12.0f)));
 }
 
-void SamplerOptimized::UpdateAdsr(SamplerOptimized::SamplePlayer *player)
+void SamplerOptimized::SamplePlayer::UpdateGain()
 {
-    Sample *sample = player->sample;
-    float goal;
-    if (player->released)
-        player->adsrState = release;
+    if (!sample->adsrEnabled)
+    {
+        gain = volume;
+        return;
+    }
 
-    switch (player->adsrState)
+    float goal;
+    if (released)
+        adsrState = release;
+
+    switch (adsrState)
     {
     case attack:
-        player->adsrGain += sample->attack * player->volume;
-        if (player->adsrGain >= player->volume)
+        gain += sample->attack * volume;
+        if (gain >= volume)
         {
-            player->adsrGain = player->volume;
-            player->adsrState = decay;
+            gain = volume;
+            adsrState = decay;
         }
         break;
     case decay:
-        goal = sample->sustain * player->volume;
-        player->adsrGain = (player->adsrGain - goal) * sample->decay + goal;
-        if ((player->adsrGain - sample->sustain) < 0.001f)
+        goal = sample->sustain * volume;
+        gain = (gain - goal) * sample->decay + goal;
+        if ((gain - sample->sustain) < 0.001f)
         {
-            player->adsrState = sustain;
-            player->adsrGain = goal;
+            adsrState = sustain;
+            gain = goal;
         }
         break;
     case sustain:
         break;
     case release:
-        player->adsrGain *= sample->release;
-        if (player->adsrGain < 0.001f)
+        gain *= sample->release;
+        if (gain < 0.001f)
         {
-            player->adsrGain = 0;
-            player->playing = false;
+            gain = 0;
+            playing = false;
         }
         break;
     }
@@ -175,14 +179,12 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         {
             Sample *sample = player->sample;
             if (sample->adsrEnabled)
-                UpdateAdsr(player);
+                player->UpdateGain();
             if (player->playing == false)
                 break;
 
             float pitch = player->pitch;
-
-            // adsrEnabledが有効の場合は adsrGain を使用する。
-            float gain = (sample->adsrEnabled) ? player->adsrGain : player->volume;
+            float gain = player->gain;
 
             // gainにマスターボリュームを適用しておく
             // 後処理で float から int16_t への変換時処理を行う際の高速化の都合で、事前に 65536倍しておく
