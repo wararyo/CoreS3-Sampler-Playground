@@ -9,11 +9,13 @@
 extern const MidiMessage simple_song[];
 extern const MidiMessage neko_song[];
 extern const MidiMessage threepiece_song[];
+extern const MidiMessage future_song[];
 extern const int16_t piano_data[24000];
 extern const int16_t bass_data[24000];
 extern const int16_t kick_data[12000];
 extern const int16_t hihat_data[3200];
 extern const int16_t snare_data[12000];
+extern const int16_t supersaw_data[30000];
 
 static struct Sample pianoSample = Sample{
     piano_data, 24000, 60,
@@ -35,6 +37,10 @@ static struct Sample snareSample = Sample{
     snare_data, 12000, 38,
     0, 0,
     false, 0, 0, 0, 0};
+static struct Sample supersawSample = Sample{
+    supersaw_data, 30000, 60,
+    23979, 25263,
+    true, 1.0f, 0.982f, 0, 0.5f};
 
 static Timbre piano = Timbre({{&pianoSample, 0, 127, 0, 127}});
 static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
@@ -43,6 +49,7 @@ static Timbre drumset = Timbre({
   {&snareSample, 38, 38, 0, 127},
   {&hihatSample, 42, 42, 0, 127}
 });
+static Timbre supersaw = Timbre({{&supersawSample, 0, 127, 0, 127}});
 
 static constexpr const uint8_t SPK_CH = 1;
 
@@ -92,6 +99,7 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
 
   sampler->SetTimbre(0, &piano);
   sampler->SetTimbre(1, &bass);
+  sampler->SetTimbre(2, &supersaw);
   sampler->SetTimbre(10, &drumset);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
