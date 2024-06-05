@@ -71,12 +71,17 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
   {
     Serial.printf("%d,", output[i]);
   }
+  delay(1);
 #else
+  // 生成した音を鳴らす
   M5.Speaker.playRaw(output, SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 1, SPK_CH);
+
+  static int dw = M5.Display.width();
+  static int dh = M5.Display.height();
+  // 波形を表示
   static int16_t prev_y[320];
   {
     static int x = 0;
-    int dh = M5.Display.height();
     for (uint_fast16_t i = 0; i < SAMPLE_BUFFER_SIZE; i++)
     {
       int y = (dh >> 1) - (output[i] >> 7);
@@ -89,6 +94,18 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
       }
       if (++x >= M5.Display.width()) { x = 0; }
     }
+  }
+  // オーディオ負荷を表示
+  static uint32_t prev_width = 0;
+  static uint32_t realtime_cycle = SAMPLE_BUFFER_SIZE * 1000000 / SAMPLE_RATE * getCpuFrequencyMhz(); // リアルタイム処理が可能な限界値 = 負荷100%時のcycle
+  {
+    uint32_t width = dw * cycle / realtime_cycle;
+    int32_t delta = width - prev_width;
+    if (delta > 0)
+      M5.Display.fillRect(prev_width, dh, delta, -10, TFT_WHITE);
+    else if (delta < 0)
+      M5.Display.fillRect(prev_width, dh, delta, -10, TFT_BLACK);
+    prev_width = width;
   }
 #endif
   // 波形合成処理に掛かったCPUサイクル数を返す
