@@ -15,6 +15,7 @@ extern const int16_t bass_data[24000];
 extern const int16_t kick_data[12000];
 extern const int16_t hihat_data[3200];
 extern const int16_t snare_data[12000];
+extern const int16_t crash_data[38879];
 extern const int16_t supersaw_data[30000];
 
 static struct Sample pianoSample = Sample{
@@ -37,6 +38,10 @@ static struct Sample snareSample = Sample{
     snare_data, 12000, 38,
     0, 0,
     false, 0, 0, 0, 0};
+static struct Sample crashSample = Sample{
+    crash_data, 38800, 49,
+    0, 0,
+    false, 0, 0, 0, 0};
 static struct Sample supersawSample = Sample{
     supersaw_data, 30000, 60,
     23979, 25263,
@@ -47,7 +52,8 @@ static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
 static Timbre drumset = Timbre({
   {&kickSample, 36, 36, 0, 127},
   {&snareSample, 38, 38, 0, 127},
-  {&hihatSample, 42, 42, 0, 127}
+  {&hihatSample, 42, 42, 0, 127},
+  {&crashSample, 49, 49, 0, 127}
 });
 static Timbre supersaw = Timbre({{&supersawSample, 0, 127, 0, 127}});
 
@@ -100,7 +106,7 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
   sampler->SetTimbre(0, &piano);
   sampler->SetTimbre(1, &bass);
   sampler->SetTimbre(2, &supersaw);
-  sampler->SetTimbre(10, &drumset);
+  sampler->SetTimbre(9, &drumset);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
