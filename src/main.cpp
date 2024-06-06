@@ -10,6 +10,7 @@ extern const MidiMessage simple_song[];
 extern const MidiMessage neko_song[];
 extern const MidiMessage threepiece_song[];
 extern const MidiMessage future_song[];
+extern const MidiMessage stresstest_song[];
 extern const int16_t piano_data[24000];
 extern const int16_t bass_data[24000];
 extern const int16_t kick_data[12000];
