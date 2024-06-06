@@ -1,5 +1,6 @@
 #include <SamplerOptimized.h>
 #include <algorithm>
+#include <tables.h>
 
 void SamplerOptimized::SamplePlayer::UpdatePitch()
 {
@@ -58,13 +59,14 @@ void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 }
 void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
 {
+    velocity &= 0b01111111; // velocityを0-127の範囲に収める
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
         if (sampler->players[i].playing == false)
         {
-            sampler->players[i] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f, pitchBend);
+            sampler->players[i] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
             playingNotes.push_back(PlayingNote{noteNo, i});
             return;
         }
@@ -75,7 +77,7 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocity / 127.0f, pitchBend);
+    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
 }
 void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
