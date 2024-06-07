@@ -2,71 +2,30 @@
 #include <algorithm>
 #include <tables.h>
 
-void SamplerOptimized::SamplePlayer::UpdatePitch()
+void SamplerOptimized::SetTimbre(uint8_t channel, Timbre *t)
 {
-    float delta = noteNo - sample->root + pitchBend;
-    pitch = ((powf(2.0f, delta / 12.0f)));
+    if(channel < CH_COUNT) channels[channel].SetTimbre(t);
 }
-
-void SamplerOptimized::SamplePlayer::UpdateGain()
+void SamplerOptimized::Channel::SetTimbre(Timbre *t)
 {
-    if (!sample->adsrEnabled)
-    {
-        gain = volume;
-        return;
-    }
-
-    float goal;
-    if (released)
-        adsrState = release;
-
-    switch (adsrState)
-    {
-    case attack:
-        gain += sample->attack * volume;
-        if (gain >= volume)
-        {
-            gain = volume;
-            adsrState = decay;
-        }
-        break;
-    case decay:
-        goal = sample->sustain * volume;
-        gain = (gain - goal) * sample->decay + goal;
-        if ((gain - sample->sustain) < 0.001f)
-        {
-            adsrState = sustain;
-            gain = goal;
-        }
-        break;
-    case sustain:
-        break;
-    case release:
-        gain *= sample->release;
-        if (gain < 0.001f)
-        {
-            gain = 0;
-            playing = false;
-        }
-        break;
-    }
+    timbre = t;
 }
 
 void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
-    if (channel >= CH_COUNT) channel = 0;        // 無効なチャンネルの場合は1CHにフォールバック
+    if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
     messageQueue.push_back(Message{MessageStatus::NOTE_ON, channel, noteNo, velocity, 0});
 }
 void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
-    if (channel >= CH_COUNT) channel = 0;        // 無効なチャンネルの場合は1CHにフォールバック
+    if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
     messageQueue.push_back(Message{MessageStatus::NOTE_OFF, channel, noteNo, velocity, 0});
 }
 void SamplerOptimized::PitchBend(int16_t pitchBend, uint8_t channel)
 {
-    if (channel >= CH_COUNT) return;
+    if (channel >= CH_COUNT) return; // 無効なチャンネルの場合は何もしない
     if (pitchBend < -8192) pitchBend = -8192;
     else if (pitchBend > 8191) pitchBend = 8191;
     messageQueue.push_back(Message{MessageStatus::PITCH_BEND, channel, 0, 0, pitchBend});
@@ -124,13 +83,53 @@ void SamplerOptimized::Channel::PitchBend(int16_t b)
     }
 }
 
-void SamplerOptimized::SetTimbre(uint8_t channel, Timbre *t)
+void SamplerOptimized::SamplePlayer::UpdatePitch()
 {
-    if(channel < CH_COUNT) channels[channel].SetTimbre(t);
+    float delta = noteNo - sample->root + pitchBend;
+    pitch = ((powf(2.0f, delta / 12.0f)));
 }
-void SamplerOptimized::Channel::SetTimbre(Timbre *t)
+void SamplerOptimized::SamplePlayer::UpdateGain()
 {
-    timbre = t;
+    if (!sample->adsrEnabled)
+    {
+        gain = volume;
+        return;
+    }
+
+    float goal;
+    if (released)
+        adsrState = release;
+
+    switch (adsrState)
+    {
+    case attack:
+        gain += sample->attack * volume;
+        if (gain >= volume)
+        {
+            gain = volume;
+            adsrState = decay;
+        }
+        break;
+    case decay:
+        goal = sample->sustain * volume;
+        gain = (gain - goal) * sample->decay + goal;
+        if ((gain - sample->sustain) < 0.001f)
+        {
+            adsrState = sustain;
+            gain = goal;
+        }
+        break;
+    case sustain:
+        break;
+    case release:
+        gain *= sample->release;
+        if (gain < 0.001f)
+        {
+            gain = 0;
+            playing = false;
+        }
+        break;
+    }
 }
 
 // sampler_process_inner の動作時に必要なデータ類をまとめた構造体
@@ -153,7 +152,8 @@ extern "C"
 
 // アセンブリ言語版と同様の処理を行うC/C++版の実装
 // weak属性を付けることで、アセンブリ言語版があればそちらを使う
-__attribute((weak, optimize("-O3"))) void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length)
+__attribute((weak, optimize("-O3")))
+void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length)
 {
     const int16_t *s = work->src;
     float *d = work->dst;

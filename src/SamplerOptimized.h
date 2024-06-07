@@ -97,5 +97,6 @@ private:
     SamplePlayer players[MAX_SOUND] = {SamplePlayer()};
     // 受け取ったNoteOn/NoteOff/PitchBendなどは一旦キューに入れておき、Processのタイミングで処理する
     // これにより、Processを別スレッドで動かすことができる
+    // TODO: messageQueue自体の排他制御は必要ない？
     std::deque<Message> messageQueue;
 };
