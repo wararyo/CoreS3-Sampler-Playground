@@ -54,12 +54,26 @@ void SamplerOptimized::SamplePlayer::UpdateGain()
 
 void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
-    if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
-    channels[channel].NoteOn(noteNo, velocity);
+    if (channel >= CH_COUNT) channel = 0;        // 無効なチャンネルの場合は1CHにフォールバック
+    velocity &= 0b01111111; // velocityを0-127の範囲に収める
+    messageQueue.push_back(Message{MessageStatus::NOTE_ON, channel, noteNo, velocity, 0});
 }
+void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
+{
+    if (channel >= CH_COUNT) channel = 0;        // 無効なチャンネルの場合は1CHにフォールバック
+    velocity &= 0b01111111; // velocityを0-127の範囲に収める
+    messageQueue.push_back(Message{MessageStatus::NOTE_OFF, channel, noteNo, velocity, 0});
+}
+void SamplerOptimized::PitchBend(int16_t pitchBend, uint8_t channel)
+{
+    if (channel >= CH_COUNT) return;
+    if (pitchBend < -8192) pitchBend = -8192;
+    else if (pitchBend > 8191) pitchBend = 8191;
+    messageQueue.push_back(Message{MessageStatus::PITCH_BEND, channel, 0, 0, pitchBend});
+}
+
 void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
 {
-    velocity &= 0b01111111; // velocityを0-127の範囲に収める
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
@@ -80,11 +94,6 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
 }
-void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
-{
-    if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
-    channels[channel].NoteOff(noteNo, velocity);
-}
 void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
 {
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
@@ -101,11 +110,6 @@ void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
             playingNotes.erase(itr);
         }
     }
-}
-
-void SamplerOptimized::PitchBend(int16_t pitchBend, uint8_t channel)
-{
-    if(channel < CH_COUNT) channels[channel].PitchBend(pitchBend);
 }
 void SamplerOptimized::Channel::PitchBend(int16_t b)
 {
@@ -185,9 +189,27 @@ __attribute((weak, optimize("-O3"))) void sampler_process_inner(sampler_process_
 __attribute((optimize("-O3")))
 void SamplerOptimized::Process(int16_t* __restrict__ output)
 {
-    float data[SAMPLE_BUFFER_SIZE] = {0.0f};
+    // キューを処理する
+    while (!messageQueue.empty())
+    {
+        Message message = messageQueue.front();
+        switch (message.status)
+        {
+        case MessageStatus::NOTE_ON:
+            channels[message.channel].NoteOn(message.noteNo, message.velocity);
+            break;
+        case MessageStatus::NOTE_OFF:
+            channels[message.channel].NoteOff(message.noteNo, message.velocity);
+            break;
+        case MessageStatus::PITCH_BEND:
+            channels[message.channel].PitchBend(message.pitchBend);
+            break;
+        }
+        messageQueue.pop_front();
+    }
 
     // 波形を生成
+    float data[SAMPLE_BUFFER_SIZE] = {0.0f};
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
         SamplePlayer *player = &players[i];

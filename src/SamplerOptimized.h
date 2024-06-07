@@ -1,8 +1,9 @@
 #pragma once
 
-#include <SamplerBase.h>
-#include <Arduino.h>
 #include <list>
+#include <deque>
+#include <Arduino.h>
+#include <SamplerBase.h>
 
 class SamplerOptimized : public SamplerBase
 {
@@ -75,6 +76,26 @@ public:
     float masterVolume = 0.25f;
 
 private:
+    // 各メッセージのキューイングに使用する
+    // MIDIのメッセージとは互換性がない
+    // TODO: noteNo/velocityとpitchBendは同時に使われることがないのに両方メモリを占有しているのどうにかならないか…？
+    struct Message
+    {
+        uint8_t status;
+        uint8_t channel;
+        uint8_t noteNo;
+        uint8_t velocity;
+        int16_t pitchBend;
+    };
+    enum MessageStatus
+    {
+        NOTE_ON,
+        NOTE_OFF,
+        PITCH_BEND
+    };
     Channel channels[CH_COUNT]; // コンストラクタで初期化する
     SamplePlayer players[MAX_SOUND] = {SamplePlayer()};
+    // 受け取ったNoteOn/NoteOff/PitchBendなどは一旦キューに入れておき、Processのタイミングで処理する
+    // これにより、Processを別スレッドで動かすことができる
+    std::deque<Message> messageQueue;
 };
