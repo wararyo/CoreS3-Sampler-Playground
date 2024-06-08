@@ -9,31 +9,25 @@ void EffectReverb::Init()
                                    REVERB_DELAY_BASIS_COMB_3 +
                                    REVERB_DELAY_BASIS_ALL_0 +
                                    REVERB_DELAY_BASIS_ALL_1 +
-                                   REVERB_DELAY_BASIS_ALL_2 +
-                                   (bufferSize * 4));
+                                   REVERB_DELAY_BASIS_ALL_2 + 1); // TODO: 余白を設けないとなぜかデストラクタでクラッシュする　なぜ？
     memory = (float *)heap_caps_calloc(1, size, MALLOC_CAP_INTERNAL);
 
-    uint32_t offset = 0;
+    float *cursor = memory;
     // TODO: timeを考慮する
-    combFilters[0] = CombFilter(memory + offset, 0.805f, REVERB_DELAY_BASIS_COMB_0);
-    offset += REVERB_DELAY_BASIS_COMB_0;
-    combFilters[1] = CombFilter(memory + offset, 0.827f, REVERB_DELAY_BASIS_COMB_1);
-    offset += REVERB_DELAY_BASIS_COMB_1;
-    combFilters[2] = CombFilter(memory + offset, 0.783f, REVERB_DELAY_BASIS_COMB_2);
-    offset += REVERB_DELAY_BASIS_COMB_2;
-    combFilters[3] = CombFilter(memory + offset, 0.764f, REVERB_DELAY_BASIS_COMB_3);
-    offset += REVERB_DELAY_BASIS_COMB_3;
-    for (uint_fast8_t i; i < 4; i++)
-    {
-        combFilterSwaps[i] = memory + offset;
-        offset += bufferSize;
-    }
-    allpassFilters[0] = AllpassFilter(memory + offset, 0.7f, REVERB_DELAY_BASIS_ALL_0);
-    offset += REVERB_DELAY_BASIS_ALL_0;
-    allpassFilters[1] = AllpassFilter(memory + offset, 0.7f, REVERB_DELAY_BASIS_ALL_1);
-    offset += REVERB_DELAY_BASIS_ALL_1;
-    allpassFilters[2] = AllpassFilter(memory + offset, 0.7f, REVERB_DELAY_BASIS_ALL_2);
-    offset += REVERB_DELAY_BASIS_ALL_2;
+    combFilters[0] = CombFilter(cursor, 0.805f, REVERB_DELAY_BASIS_COMB_0);
+    cursor += REVERB_DELAY_BASIS_COMB_0;
+    combFilters[1] = CombFilter(cursor, 0.827f, REVERB_DELAY_BASIS_COMB_1);
+    cursor += REVERB_DELAY_BASIS_COMB_1;
+    combFilters[2] = CombFilter(cursor, 0.783f, REVERB_DELAY_BASIS_COMB_2);
+    cursor += REVERB_DELAY_BASIS_COMB_2;
+    combFilters[3] = CombFilter(cursor, 0.764f, REVERB_DELAY_BASIS_COMB_3);
+    cursor += REVERB_DELAY_BASIS_COMB_3;
+    allpassFilters[0] = AllpassFilter(cursor, 0.7f, REVERB_DELAY_BASIS_ALL_0);
+    cursor += REVERB_DELAY_BASIS_ALL_0;
+    allpassFilters[1] = AllpassFilter(cursor, 0.7f, REVERB_DELAY_BASIS_ALL_1);
+    cursor += REVERB_DELAY_BASIS_ALL_1;
+    allpassFilters[2] = AllpassFilter(cursor, 0.7f, REVERB_DELAY_BASIS_ALL_2);
+    cursor += REVERB_DELAY_BASIS_ALL_2;
 }
 
 __attribute((optimize("-O3")))
@@ -48,7 +42,7 @@ void EffectReverb::CombFilter::Process(const float *input, float *__restrict__ o
             cursor++;
         else
             cursor = 0;
-        output[i] = readback;
+        output[i] += readback; // このリバーブではコムフィルターは並列でのみ用いられるので、加算したほうが処理の都合がいい
     }
 }
 
@@ -65,15 +59,39 @@ void EffectReverb::AllpassFilter::Process(const float *input, float *__restrict_
             cursor++;
         else
             cursor = 0;
-        output[i] = readback;
+        output[i] = readback; // コムフィルターと異なり上書きする
     }
 }
 
 __attribute((optimize("-O3")))
 void EffectReverb::Process(const float *input, float *__restrict__ output)
 {
-    // コムフィルターのテスト
-    // combFilters[0].Process(input, output, bufferSize);
-    // オールパスフィルターのテスト
-    allpassFilters[0].Process(input, output, bufferSize);
+    // 最初に振幅を下げておく(リバーブの効果は絶対的な振幅に影響されないためOK)
+    float buffer[bufferSize];
+    float multiplier = level * 0.25f; // コムフィルターの平均を取るための0.25f;
+    for (uint32_t i = 0; i < bufferSize; i++)
+    {
+        buffer[i] = input[i] * multiplier;
+    }
+
+    float processed[bufferSize] = {0.0f}; // これが最終的にリバーブ成分になる
+
+    // 4つのコムフィルター(並列)
+    for (uint_fast8_t i; i < 4; i++)
+    {
+        combFilters[i].Process(buffer, processed, bufferSize); // 内部でprocessedに加算される
+    }
+    // コムフィルターの出力は本来足して平均を取るべきだが、最初に0.25を掛けているので単純に足し合わせるだけでOK
+
+    // 3つのオールパスフィルター(直列)
+    for (uint_fast8_t i; i < 3; i++)
+    {
+        allpassFilters[i].Process(processed, processed, bufferSize); // processedは内部で上書きされる
+    }
+
+    // 原音と合わせて出力
+    for (uint32_t i = 0; i < bufferSize; i++)
+    {
+        output[i] = input[i] + processed[i];
+    }
 }

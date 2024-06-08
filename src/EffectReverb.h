@@ -47,7 +47,7 @@ public:
     {
         free(memory);
     }
-    float level = 0.1f; // リバーブの強さ 入力の音量は変化しません(DRY/WETではありません)
+    float level = 0.05f; // リバーブの強さ 入力の音量は変化しません(DRY/WETではありません)
     float time = 1.0f;  // リバーブの持続時間
     uint32_t bufferSize;
     void Init();
@@ -55,7 +55,6 @@ public:
 
 private:
     float *memory;
-    float *combFilterSwaps[4]; // コムフィルターは並列で処理するため、処理結果を一時的に退避させる場所が必要になる
     CombFilter combFilters[4];
     AllpassFilter allpassFilters[3];
 };
