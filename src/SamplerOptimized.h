@@ -4,6 +4,7 @@
 #include <deque>
 #include <Arduino.h>
 #include <SamplerBase.h>
+#include <EffectReverb.h>
 
 class SamplerOptimized : public SamplerBase
 {
@@ -99,4 +100,6 @@ private:
     // これにより、Processを別スレッドで動かすことができる
     // TODO: messageQueue自体の排他制御は必要ない？
     std::deque<Message> messageQueue;
+
+    EffectReverb reverb = EffectReverb(0.25f, 1.0f, SAMPLE_BUFFER_SIZE);
 };

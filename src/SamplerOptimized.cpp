@@ -267,6 +267,10 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         }
     }
 
+    { // マスターエフェクト処理
+        reverb.Process(data, data);
+    }
+
     { // 生成した波形をint16_tに変換して出力先に書き込む
 #if CONFIG_IDF_TARGET_ESP32S3
         // ESP32S3の場合はSIMD命令を使って高速化
