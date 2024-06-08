@@ -3,14 +3,14 @@
 
 void EffectReverb::Init()
 {
-    size_t size = REVERB_DELAY_BASIS_COMB_0 +
-                  REVERB_DELAY_BASIS_COMB_1 +
-                  REVERB_DELAY_BASIS_COMB_2 +
-                  REVERB_DELAY_BASIS_COMB_3 +
-                  REVERB_DELAY_BASIS_ALL_0 +
-                  REVERB_DELAY_BASIS_ALL_1 +
-                  REVERB_DELAY_BASIS_ALL_2 + 
-                  (bufferSize * 4);
+    size_t size = sizeof(float) * (REVERB_DELAY_BASIS_COMB_0 +
+                                   REVERB_DELAY_BASIS_COMB_1 +
+                                   REVERB_DELAY_BASIS_COMB_2 +
+                                   REVERB_DELAY_BASIS_COMB_3 +
+                                   REVERB_DELAY_BASIS_ALL_0 +
+                                   REVERB_DELAY_BASIS_ALL_1 +
+                                   REVERB_DELAY_BASIS_ALL_2 +
+                                   (bufferSize * 4));
     memory = (float *)heap_caps_calloc(1, size, MALLOC_CAP_INTERNAL);
 
     uint32_t offset = 0;
@@ -28,25 +28,52 @@ void EffectReverb::Init()
         combFilterSwaps[i] = memory + offset;
         offset += bufferSize;
     }
+    allpassFilters[0] = AllpassFilter(memory + offset, 0.7f, REVERB_DELAY_BASIS_ALL_0);
+    offset += REVERB_DELAY_BASIS_ALL_0;
+    allpassFilters[1] = AllpassFilter(memory + offset, 0.7f, REVERB_DELAY_BASIS_ALL_1);
+    offset += REVERB_DELAY_BASIS_ALL_1;
+    allpassFilters[2] = AllpassFilter(memory + offset, 0.7f, REVERB_DELAY_BASIS_ALL_2);
+    offset += REVERB_DELAY_BASIS_ALL_2;
 }
 
 __attribute((optimize("-O3")))
-void EffectReverb::CombFilter::Process(const float *input, float* __restrict__ output, uint32_t len)
+void EffectReverb::CombFilter::Process(const float *input, float *__restrict__ output, uint32_t len)
 {
     for (uint32_t i = 0; i < len; i++)
     {
         const float readback = buffer[cursor];
         const float newValue = readback * g + input[i];
         buffer[cursor] = newValue;
-        if (cursor < delaySamples) cursor++;
-        else cursor = 0;
+        if (cursor < delaySamples)
+            cursor++;
+        else
+            cursor = 0;
         output[i] = readback;
     }
 }
 
 __attribute((optimize("-O3")))
-void EffectReverb::Process(const float *input, float* __restrict__ output)
+void EffectReverb::AllpassFilter::Process(const float *input, float *__restrict__ output, uint32_t len)
+{
+    for (uint32_t i = 0; i < len; i++)
+    {
+        float readback = buffer[cursor];
+        readback += (-g) * input[i];
+        const float newValue = readback * g + input[i];
+        buffer[cursor] = newValue;
+        if (cursor < delaySamples)
+            cursor++;
+        else
+            cursor = 0;
+        output[i] = readback;
+    }
+}
+
+__attribute((optimize("-O3")))
+void EffectReverb::Process(const float *input, float *__restrict__ output)
 {
     // コムフィルターのテスト
-    combFilters[0].Process(input, output, bufferSize);
+    // combFilters[0].Process(input, output, bufferSize);
+    // オールパスフィルターのテスト
+    allpassFilters[0].Process(input, output, bufferSize);
 }

@@ -27,6 +27,18 @@ public:
 
         void Process(const float *input, float *output, uint32_t len);
     };
+    class AllpassFilter
+    {
+    public:
+        AllpassFilter(float *buffer, float g, uint32_t delaySamples) : buffer{buffer}, g{g}, delaySamples{delaySamples} {}
+        AllpassFilter() {}
+        float *buffer;
+        uint32_t cursor = 0;
+        float g; // フィードバックのレベル 一般的にgで表される
+        uint32_t delaySamples;
+
+        void Process(const float *input, float *output, uint32_t len);
+    };
     EffectReverb(float level, float time, uint32_t bufferSize) : level{level}, time{time}, bufferSize{bufferSize}
     {
         Init();
@@ -45,5 +57,5 @@ private:
     float *memory;
     float *combFilterSwaps[4]; // コムフィルターは並列で処理するため、処理結果を一時的に退避させる場所が必要になる
     CombFilter combFilters[4];
-    // AllpassFilter allpassFilters[3];
+    AllpassFilter allpassFilters[3];
 };
