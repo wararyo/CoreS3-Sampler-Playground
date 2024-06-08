@@ -2,7 +2,7 @@
 
 #include <list>
 #include <deque>
-#include <Arduino.h>
+#include <M5Unified.h>
 #include <SamplerBase.h>
 
 class SamplerOptimized : public SamplerBase
@@ -13,12 +13,12 @@ public:
     {
     public:
         SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume, float pitchBend)
-            : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{micros()}
+            : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{M5.micros()}
         {
             UpdatePitch();
             gain = volume;
         }
-        SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{micros()} {}
+        SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{M5.micros()} {}
         struct Sample *sample;
         uint8_t noteNo;
         float pitchBend = 0;

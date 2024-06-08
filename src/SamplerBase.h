@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdint.h>
 #include <vector>
 
 // ADSR更新周期 (サンプル数)
@@ -74,7 +75,7 @@ public:
     virtual void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel) = 0;
     // ピッチベンドを-8192から+8191の範囲で指定する
     virtual void PitchBend(int16_t pitchBend, uint8_t channel) = 0;
-    virtual void SetTimbre(uint8_t channel, Timbre *timbre);
+    virtual void SetTimbre(uint8_t channel, Timbre *timbre) = 0;
 
     // SAMPLE_BUFFER_SIZE分の音声処理を進めます
     // outputの配列数はSAMPLE_BUFFER_SIZEと同じかそれ以上である必要があります

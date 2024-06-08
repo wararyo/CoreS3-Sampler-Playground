@@ -209,7 +209,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
     }
 
     // 波形を生成
-    float data[SAMPLE_BUFFER_SIZE] = {0.0f};
+    float data[SAMPLE_BUFFER_SIZE] __attribute__ ((aligned (16))) = {0.0f};
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
         SamplePlayer *player = &players[i];
