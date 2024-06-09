@@ -7,11 +7,11 @@
 #define ENABLE_PRINTING false
 
 extern const MidiMessage simple_song[];
+extern const MidiMessage stresstest_song[];
 extern const MidiMessage neko_song[];
 extern const MidiMessage threepiece_song[];
 extern const MidiMessage future_song[];
 extern const MidiMessage twostep_song[];
-extern const MidiMessage stresstest_song[];
 extern const int16_t piano_data[24000];
 extern const int16_t bass_data[24000];
 extern const int16_t kick_data[12000];
@@ -79,11 +79,11 @@ struct song_table_entry_t
 
 static constexpr const song_table_entry_t song_table[] = {
   { simple_song,     "simple" },
+  { stresstest_song, "stresstest" },
   { neko_song,       "neko" },
   { threepiece_song, "threepiece" },
   { future_song,     "future" },
   { twostep_song, "twostep" },
-  { stresstest_song, "stresstest" },
 };
 static constexpr const size_t song_table_count = sizeof(song_table) / sizeof(song_table[0]);
 
@@ -113,8 +113,8 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
   for (uint_fast16_t i; i < SAMPLE_BUFFER_SIZE; i++)
   {
     Serial.printf("%d,", output[i]);
+    delayMicroseconds(100);
   }
-  delay(1);
 #else
   // 生成した音を鳴らす
   M5.Speaker.playRaw(output, SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 1, SPK_CH);
