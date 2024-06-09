@@ -10,14 +10,17 @@ extern const MidiMessage simple_song[];
 extern const MidiMessage neko_song[];
 extern const MidiMessage threepiece_song[];
 extern const MidiMessage future_song[];
+extern const MidiMessage twostep_song[];
 extern const MidiMessage stresstest_song[];
 extern const int16_t piano_data[24000];
 extern const int16_t bass_data[24000];
 extern const int16_t kick_data[12000];
-extern const int16_t hihat_data[3200];
+extern const int16_t rimknock_data[10000];
 extern const int16_t snare_data[12000];
+extern const int16_t hihat_data[3200];
 extern const int16_t crash_data[38879];
 extern const int16_t supersaw_data[30000];
+extern const int16_t epiano_data[124800];
 
 static struct Sample pianoSample = Sample{
     piano_data, 24000, 60,
@@ -31,12 +34,16 @@ static struct Sample kickSample = Sample{
     kick_data, 12000, 36,
     0, 0,
     false, 0, 0, 0, 0};
-static struct Sample hihatSample = Sample{
-    hihat_data, 3200, 42,
+static struct Sample rimknockSample = Sample{
+    rimknock_data, 9800, 37,
     0, 0,
     false, 0, 0, 0, 0};
 static struct Sample snareSample = Sample{
     snare_data, 12000, 38,
+    0, 0,
+    false, 0, 0, 0, 0};
+static struct Sample hihatSample = Sample{
+    hihat_data, 3200, 42,
     0, 0,
     false, 0, 0, 0, 0};
 static struct Sample crashSample = Sample{
@@ -47,16 +54,22 @@ static struct Sample supersawSample = Sample{
     supersaw_data, 30000, 60,
     23979, 25263,
     true, 1.0f, 0.982f, 0, 0.5f};
+static struct Sample epianoSample = Sample{
+    epiano_data, 124800, 60,
+    120048, 120415,
+    true, 1.0f, 0.98f, 0.5f, 0.95f};
 
 static Timbre piano = Timbre({{&pianoSample, 0, 127, 0, 127}});
 static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
 static Timbre drumset = Timbre({
   {&kickSample, 36, 36, 0, 127},
+  {&rimknockSample, 37, 37, 0, 127},
   {&snareSample, 38, 38, 0, 127},
   {&hihatSample, 42, 42, 0, 127},
   {&crashSample, 49, 49, 0, 127}
 });
 static Timbre supersaw = Timbre({{&supersawSample, 0, 127, 0, 127}});
+static Timbre epiano = Timbre({{&epianoSample, 0, 127, 0, 127}});
 
 struct song_table_entry_t
 {
@@ -69,6 +82,7 @@ static constexpr const song_table_entry_t song_table[] = {
   { neko_song,       "neko" },
   { threepiece_song, "threepiece" },
   { future_song,     "future" },
+  { twostep_song, "twostep" },
   { stresstest_song, "stresstest" },
 };
 static constexpr const size_t song_table_count = sizeof(song_table) / sizeof(song_table[0]);
@@ -152,6 +166,7 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
   sampler->SetTimbre(0, &piano);
   sampler->SetTimbre(1, &bass);
   sampler->SetTimbre(2, &supersaw);
+  sampler->SetTimbre(3, &epiano);
   sampler->SetTimbre(9, &drumset);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
