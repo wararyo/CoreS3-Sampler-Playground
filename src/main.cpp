@@ -58,14 +58,42 @@ static Timbre drumset = Timbre({
 });
 static Timbre supersaw = Timbre({{&supersawSample, 0, 127, 0, 127}});
 
+struct song_table_entry_t
+{
+  const MidiMessage *song;
+  const char *name;
+};
+
+static constexpr const song_table_entry_t song_table[] = {
+  { simple_song,     "simple" },
+  { neko_song,       "neko" },
+  { threepiece_song, "threepiece" },
+  { future_song,     "future" },
+  { stresstest_song, "stresstest" },
+};
+static constexpr const size_t song_table_count = sizeof(song_table) / sizeof(song_table[0]);
+
 static constexpr const uint8_t SPK_CH = 1;
+
+#if defined ( M5UNIFIED_PC_BUILD )
+static int getCpuFrequencyMhz() { return 1; }
+#define PRO_CPU_NUM 0
+#endif
 
 uint32_t process(SamplerBase *sampler, int16_t *output)
 {
   uint32_t cycle_begin, cycle_end;
+#if defined (M5UNIFIED_PC_BUILD)
+  cycle_begin = M5.micros();
+#else
   __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_begin)); // 処理前のCPUサイクル値を取得
+#endif
   sampler->Process(output);
+#if defined (M5UNIFIED_PC_BUILD)
+  cycle_end = M5.micros();
+#else
   __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_end)); // 処理後のCPUサイクル値を取得
+#endif
   uint32_t cycle = cycle_end - cycle_begin;
 #if ENABLE_PRINTING
   for (uint_fast16_t i; i < SAMPLE_BUFFER_SIZE; i++)
@@ -208,14 +236,39 @@ void loop()
 {
   M5.update();
   auto touch = M5.Touch.getDetail();
+
+  static int32_t prev_song_index = -1;
+  static int32_t song_index = 0;
+
+  // フリックを終えたとき song_indexを更新する
+  if (touch.wasFlicked()) {
+    song_index = prev_song_index;
+  }
+  // フリック操作による曲選択
+  int32_t selecting_song_index = song_index;
+  if (touch.isFlicking()) {
+    int32_t advance = touch.distanceY() >> 5;
+    selecting_song_index += advance + (song_table_count << 8);
+    selecting_song_index %= song_table_count;
+  }
+  // 表示を更新
+  if (prev_song_index != selecting_song_index) {
+    prev_song_index = selecting_song_index;
+    int y = 120;
+    M5.Display.fillRect(0, y, M5.Display.width(), 32, TFT_BLACK);
+    M5.Display.setCursor(0, y);
+    M5.Display.print(song_table[selecting_song_index].name);
+  }
+
   if (touch.wasClicked() && touch.base_y < M5.Display.height())
   {
+    prev_song_index = -1;
     M5.Display.clear();
     M5.Display.setCursor(0, 0);
     M5.Display.println("Processing...");
 
     SamplerOptimized sampler = SamplerOptimized();
-    time_t elapsedTime = benchmark(&sampler, simple_song);
+    time_t elapsedTime = benchmark(&sampler, song_table[song_index].song);
     
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");
@@ -224,5 +277,5 @@ void loop()
     M5.Log.printf("Elapsed time: %ld us\n", elapsedTime);
 #endif
   }
-  delay(100);
+  M5.delay(16);
 }
