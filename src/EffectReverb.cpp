@@ -1,5 +1,5 @@
 #include <EffectReverb.h>
-#include <Arduino.h>
+#include <M5Unified.h>
 
 void EffectReverb::Init()
 {
@@ -10,7 +10,11 @@ void EffectReverb::Init()
                                    REVERB_DELAY_BASIS_ALL_0 +
                                    REVERB_DELAY_BASIS_ALL_1 +
                                    REVERB_DELAY_BASIS_ALL_2 + 1); // TODO: 余白を設けないとなぜかデストラクタでクラッシュする　なぜ？
+#if defined(M5UNIFIED_PC_BUILD)
+    memory = (float *)calloc(1, size);
+#else
     memory = (float *)heap_caps_calloc(1, size, MALLOC_CAP_INTERNAL);
+#endif
 
     float *cursor = memory;
     // TODO: timeを考慮する
@@ -74,7 +78,8 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
         buffer[i] = input[i] * multiplier;
     }
 
-    float processed[bufferSize] = {0.0f}; // これが最終的にリバーブ成分になる
+    float processed[bufferSize]; // これが最終的にリバーブ成分になる
+    memset(processed, 0, sizeof(float) * bufferSize);
 
     // 4つのコムフィルター(並列)
     for (uint_fast8_t i; i < 4; i++)

@@ -2,6 +2,11 @@
 
 #include <stdio.h>
 #include <EffectBase.h>
+#include <M5Unified.h>
+
+#if defined(M5UNIFIED_PC_BUILD)
+#include <cstdlib>
+#endif
 
 #define REVERB_DELAY_BASIS_COMB_0 3460
 #define REVERB_DELAY_BASIS_COMB_1 2988
