@@ -7,17 +7,20 @@
 #define ENABLE_PRINTING false
 
 extern const MidiMessage simple_song[];
+extern const MidiMessage stresstest_song[];
 extern const MidiMessage neko_song[];
 extern const MidiMessage threepiece_song[];
 extern const MidiMessage future_song[];
-extern const MidiMessage stresstest_song[];
+extern const MidiMessage twostep_song[];
 extern const int16_t piano_data[24000];
 extern const int16_t bass_data[24000];
 extern const int16_t kick_data[12000];
-extern const int16_t hihat_data[3200];
+extern const int16_t rimknock_data[10000];
 extern const int16_t snare_data[12000];
+extern const int16_t hihat_data[3200];
 extern const int16_t crash_data[38879];
 extern const int16_t supersaw_data[30000];
+extern const int16_t epiano_data[124800];
 
 static struct Sample pianoSample = Sample{
     piano_data, 24000, 60,
@@ -31,12 +34,16 @@ static struct Sample kickSample = Sample{
     kick_data, 12000, 36,
     0, 0,
     false, 0, 0, 0, 0};
-static struct Sample hihatSample = Sample{
-    hihat_data, 3200, 42,
+static struct Sample rimknockSample = Sample{
+    rimknock_data, 9800, 37,
     0, 0,
     false, 0, 0, 0, 0};
 static struct Sample snareSample = Sample{
     snare_data, 12000, 38,
+    0, 0,
+    false, 0, 0, 0, 0};
+static struct Sample hihatSample = Sample{
+    hihat_data, 3200, 42,
     0, 0,
     false, 0, 0, 0, 0};
 static struct Sample crashSample = Sample{
@@ -47,32 +54,67 @@ static struct Sample supersawSample = Sample{
     supersaw_data, 30000, 60,
     23979, 25263,
     true, 1.0f, 0.982f, 0, 0.5f};
+static struct Sample epianoSample = Sample{
+    epiano_data, 124800, 60,
+    120048, 120415,
+    true, 1.0f, 0.98f, 0.5f, 0.95f};
 
 static Timbre piano = Timbre({{&pianoSample, 0, 127, 0, 127}});
 static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
 static Timbre drumset = Timbre({
   {&kickSample, 36, 36, 0, 127},
+  {&rimknockSample, 37, 37, 0, 127},
   {&snareSample, 38, 38, 0, 127},
   {&hihatSample, 42, 42, 0, 127},
   {&crashSample, 49, 49, 0, 127}
 });
 static Timbre supersaw = Timbre({{&supersawSample, 0, 127, 0, 127}});
+static Timbre epiano = Timbre({{&epianoSample, 0, 127, 0, 127}});
+
+struct song_table_entry_t
+{
+  const MidiMessage *song;
+  const char *name;
+};
+
+static constexpr const song_table_entry_t song_table[] = {
+  { simple_song,     "simple" },
+  { stresstest_song, "stresstest" },
+  { neko_song,       "neko" },
+  { threepiece_song, "threepiece" },
+  { future_song,     "future" },
+  { twostep_song, "twostep" },
+};
+static constexpr const size_t song_table_count = sizeof(song_table) / sizeof(song_table[0]);
 
 static constexpr const uint8_t SPK_CH = 1;
+
+#if defined ( M5UNIFIED_PC_BUILD )
+static int getCpuFrequencyMhz() { return 1; }
+#define PRO_CPU_NUM 0
+#endif
 
 uint32_t process(SamplerBase *sampler, int16_t *output)
 {
   uint32_t cycle_begin, cycle_end;
+#if defined (M5UNIFIED_PC_BUILD)
+  cycle_begin = M5.micros();
+#else
   __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_begin)); // 処理前のCPUサイクル値を取得
+#endif
   sampler->Process(output);
+#if defined (M5UNIFIED_PC_BUILD)
+  cycle_end = M5.micros();
+#else
   __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_end)); // 処理後のCPUサイクル値を取得
+#endif
   uint32_t cycle = cycle_end - cycle_begin;
 #if ENABLE_PRINTING
   for (uint_fast16_t i; i < SAMPLE_BUFFER_SIZE; i++)
   {
     Serial.printf("%d,", output[i]);
+    delayMicroseconds(100);
   }
-  delay(1);
 #else
   // 生成した音を鳴らす
   M5.Speaker.playRaw(output, SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 1, SPK_CH);
@@ -124,6 +166,7 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
   sampler->SetTimbre(0, &piano);
   sampler->SetTimbre(1, &bass);
   sampler->SetTimbre(2, &supersaw);
+  sampler->SetTimbre(3, &epiano);
   sampler->SetTimbre(9, &drumset);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
@@ -208,14 +251,39 @@ void loop()
 {
   M5.update();
   auto touch = M5.Touch.getDetail();
+
+  static int32_t prev_song_index = -1;
+  static int32_t song_index = 0;
+
+  // フリックを終えたとき song_indexを更新する
+  if (touch.wasFlicked()) {
+    song_index = prev_song_index;
+  }
+  // フリック操作による曲選択
+  int32_t selecting_song_index = song_index;
+  if (touch.isFlicking()) {
+    int32_t advance = touch.distanceY() >> 5;
+    selecting_song_index += advance + (song_table_count << 8);
+    selecting_song_index %= song_table_count;
+  }
+  // 表示を更新
+  if (prev_song_index != selecting_song_index) {
+    prev_song_index = selecting_song_index;
+    int y = 120;
+    M5.Display.fillRect(0, y, M5.Display.width(), 32, TFT_BLACK);
+    M5.Display.setCursor(0, y);
+    M5.Display.print(song_table[selecting_song_index].name);
+  }
+
   if (touch.wasClicked() && touch.base_y < M5.Display.height())
   {
+    prev_song_index = -1;
     M5.Display.clear();
     M5.Display.setCursor(0, 0);
     M5.Display.println("Processing...");
 
     SamplerOptimized sampler = SamplerOptimized();
-    time_t elapsedTime = benchmark(&sampler, simple_song);
+    time_t elapsedTime = benchmark(&sampler, song_table[song_index].song);
     
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");
@@ -224,5 +292,5 @@ void loop()
     M5.Log.printf("Elapsed time: %ld us\n", elapsedTime);
 #endif
   }
-  delay(100);
+  M5.delay(16);
 }

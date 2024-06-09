@@ -2,7 +2,7 @@
 
 #include <list>
 #include <deque>
-#include <Arduino.h>
+#include <M5Unified.h>
 #include <SamplerBase.h>
 #include <EffectReverb.h>
 
@@ -14,12 +14,12 @@ public:
     {
     public:
         SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume, float pitchBend)
-            : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{micros()}
+            : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{M5.micros()}
         {
             UpdatePitch();
             gain = volume;
         }
-        SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{micros()} {}
+        SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{M5.micros()} {}
         struct Sample *sample;
         uint8_t noteNo;
         float pitchBend = 0;
@@ -74,7 +74,7 @@ public:
 
     void Process(int16_t *output);
 
-    float masterVolume = 0.25f;
+    float masterVolume = 0.4f;
 
 private:
     // 各メッセージのキューイングに使用する
