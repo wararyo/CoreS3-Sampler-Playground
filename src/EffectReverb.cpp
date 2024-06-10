@@ -9,7 +9,7 @@ void EffectReverb::Init()
                                    REVERB_DELAY_BASIS_COMB_3 +
                                    REVERB_DELAY_BASIS_ALL_0 +
                                    REVERB_DELAY_BASIS_ALL_1 +
-                                   REVERB_DELAY_BASIS_ALL_2 + 1); // TODO: 余白を設けないとなぜかデストラクタでクラッシュする　なぜ？
+                                   REVERB_DELAY_BASIS_ALL_2);
 #if defined(M5UNIFIED_PC_BUILD)
     memory = (float *)calloc(1, size);
 #else
@@ -42,10 +42,8 @@ void EffectReverb::CombFilter::Process(const float *input, float *__restrict__ o
         const float readback = buffer[cursor];
         const float newValue = readback * g + input[i];
         buffer[cursor] = newValue;
-        if (cursor < delaySamples)
-            cursor++;
-        else
-            cursor = 0;
+        cursor++;
+        if (cursor >= delaySamples) cursor = 0;
         output[i] += readback; // このリバーブではコムフィルターは並列でのみ用いられるので、加算したほうが処理の都合がいい
     }
 }
@@ -59,10 +57,8 @@ void EffectReverb::AllpassFilter::Process(const float *input, float *__restrict_
         readback += (-g) * input[i];
         const float newValue = readback * g + input[i];
         buffer[cursor] = newValue;
-        if (cursor < delaySamples)
-            cursor++;
-        else
-            cursor = 0;
+        cursor++;
+        if (cursor >= delaySamples) cursor = 0;
         output[i] = readback; // コムフィルターと異なり上書きする
     }
 }
