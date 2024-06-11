@@ -30,7 +30,7 @@ public:
         float g; // フィードバックのレベル 一般的にgで表される
         uint32_t delaySamples;
 
-        void Process(const float *input, float *output, uint32_t len);
+        void Process4(const float *input, float *output); // 処理を4サンプル進める
     };
     class AllpassFilter
     {
@@ -42,7 +42,7 @@ public:
         float g; // フィードバックのレベル 一般的にgで表される
         uint32_t delaySamples;
 
-        void Process(const float *input, float *output, uint32_t len);
+        void Process4(const float *input, float *output); // 処理を4サンプル進める
     };
     EffectReverb(float level, float time, uint32_t bufferSize) : level{level}, time{time}, bufferSize{bufferSize}
     {
@@ -54,7 +54,7 @@ public:
     }
     float level = 0.05f; // リバーブの強さ 入力の音量は変化しません(DRY/WETではありません)
     float time = 1.0f;  // リバーブの持続時間
-    uint32_t bufferSize;
+    uint32_t bufferSize; // Processで渡されるinputおよびoutputの長さ　必ず4の倍数である必要がある
     void Init();
     void Process(const float *input, float *output);
 
