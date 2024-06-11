@@ -20,30 +20,6 @@
 class EffectReverb : public EffectBase
 {
 public:
-    class CombFilter
-    {
-    public:
-        CombFilter(float *buffer, float g, uint32_t delaySamples) : buffer{buffer}, g{g}, delaySamples{delaySamples} {}
-        CombFilter() {}
-        float *buffer;
-        uint32_t cursor = 0;
-        float g; // フィードバックのレベル 一般的にgで表される
-        uint32_t delaySamples;
-
-        void Process4(const float *input, float *output); // 処理を4サンプル進める
-    };
-    class AllpassFilter
-    {
-    public:
-        AllpassFilter(float *buffer, float g, uint32_t delaySamples) : buffer{buffer}, g{g}, delaySamples{delaySamples} {}
-        AllpassFilter() {}
-        float *buffer;
-        uint32_t cursor = 0;
-        float g; // フィードバックのレベル 一般的にgで表される
-        uint32_t delaySamples;
-
-        void Process4(const float *input, float *output); // 処理を4サンプル進める
-    };
     EffectReverb(float level, float time, uint32_t bufferSize) : level{level}, time{time}, bufferSize{bufferSize}
     {
         Init();
@@ -60,6 +36,4 @@ public:
 
 private:
     float *memory;
-    CombFilter combFilters[4];
-    AllpassFilter allpassFilters[3];
 };
