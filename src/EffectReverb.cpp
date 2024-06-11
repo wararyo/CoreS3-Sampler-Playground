@@ -1,19 +1,25 @@
 #include <EffectReverb.h>
 #include <M5Unified.h>
 
+// 各フィルターの設定
+// バッファの後ろは3サンプル以上空けておく必要がある
 struct comb_t
 {
+    // buffer_end - buffer_start = 遅延の長さ(サンプル数)
+    // buffer_end[0] - buffer_end[2]はバッファに含まれないがメモリとして自由に使える領域
     float *buffer_start;
     float *cursor;
     float g; // フィードバックのレベル 一般的にgで表される
-    float *buffer_end; // buffer_end - buffer_start = 遅延の長さ(サンプル数)
+    float *buffer_end;
 };
 struct allpass_t
 {
+    // buffer_end - buffer_start = 遅延の長さ(サンプル数)
+    // buffer_end[0] - buffer_end[2]はバッファに含まれないがメモリとして自由に使える領域
     float *buffer_start;
     float *cursor;
     float g; // フィードバックのレベル 一般的にgで表される
-    float *buffer_end; // buffer_end - buffer_start = 遅延の長さ(サンプル数)
+    float *buffer_end;
 };
 
 struct comb_t combs[4];
@@ -21,13 +27,13 @@ struct allpass_t allpasses[3];
 
 void EffectReverb::Init()
 {
-    size_t size = sizeof(float) * (REVERB_DELAY_BASIS_COMB_0 +
-                                   REVERB_DELAY_BASIS_COMB_1 +
-                                   REVERB_DELAY_BASIS_COMB_2 +
-                                   REVERB_DELAY_BASIS_COMB_3 +
-                                   REVERB_DELAY_BASIS_ALL_0 +
-                                   REVERB_DELAY_BASIS_ALL_1 +
-                                   REVERB_DELAY_BASIS_ALL_2);
+    size_t size = sizeof(float) * (REVERB_DELAY_BASIS_COMB_0 + 3 +
+                                   REVERB_DELAY_BASIS_COMB_1 + 3 +
+                                   REVERB_DELAY_BASIS_COMB_2 + 3 +
+                                   REVERB_DELAY_BASIS_COMB_3 + 3 +
+                                   REVERB_DELAY_BASIS_ALL_0 + 3 +
+                                   REVERB_DELAY_BASIS_ALL_1 + 3 +
+                                   REVERB_DELAY_BASIS_ALL_2 + 3);
 #if defined(M5UNIFIED_PC_BUILD)
     memory = (float *)calloc(1, size);
 #else
@@ -40,19 +46,19 @@ void EffectReverb::Init()
 
     float *cursor = memory;
     combs[0] = comb_t{cursor, cursor, 0.805f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_0)};
-    cursor += REVERB_DELAY_BASIS_COMB_0;
+    cursor += REVERB_DELAY_BASIS_COMB_0 + 3;
     combs[1] = comb_t{cursor, cursor, 0.827f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_1)};
-    cursor += REVERB_DELAY_BASIS_COMB_1;
+    cursor += REVERB_DELAY_BASIS_COMB_1 + 3;
     combs[2] = comb_t{cursor, cursor, 0.783f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_2)};
-    cursor += REVERB_DELAY_BASIS_COMB_2;
+    cursor += REVERB_DELAY_BASIS_COMB_2 + 3;
     combs[3] = comb_t{cursor, cursor, 0.764f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_3)};
-    cursor += REVERB_DELAY_BASIS_COMB_3;
+    cursor += REVERB_DELAY_BASIS_COMB_3 + 3;
     allpasses[0] = allpass_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_0)};
-    cursor += REVERB_DELAY_BASIS_ALL_0;
+    cursor += REVERB_DELAY_BASIS_ALL_0 + 3;
     allpasses[1] = allpass_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_1)};
-    cursor += REVERB_DELAY_BASIS_ALL_1;
+    cursor += REVERB_DELAY_BASIS_ALL_1 + 3;
     allpasses[2] = allpass_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_2)};
-    cursor += REVERB_DELAY_BASIS_ALL_2;
+    cursor += REVERB_DELAY_BASIS_ALL_2 + 3;
 }
 
 extern "C"
@@ -69,13 +75,35 @@ void comb_filter_process4_work(const float *input, float *__restrict__ output, s
     float *cursor = comb->cursor;
     float g = comb->g;
     float *buffer_end = comb->buffer_end;
+
+    // bufferのループ処理をforループ内で行う代わりにその前後で行う
+    bool should_loop = (cursor + 4) >= buffer_end;
+    if (should_loop)
+    {
+        // バッファの始まりの部分をバッファの直後にコピーしておく
+        buffer_end[0] = buffer_start[0];
+        buffer_end[1] = buffer_start[1];
+        buffer_end[2] = buffer_start[2];
+    }
+
+    // 実際のコムフィルター処理
     for (uint_fast8_t i = 0; i < 4; i++)
     {
         const float readback = *cursor;
         const float newValue = readback * g + input[i];
         *cursor = newValue;
-        if (++cursor >= buffer_end) cursor = buffer_start;
+        cursor++;
         output[i] += readback; // このリバーブではコムフィルターは並列でのみ用いられるので、加算したほうが処理の都合がいい
+    }
+
+    if (should_loop)
+    {
+        // コピーしておいたバッファの一部分を元の場所に戻す
+        buffer_start[0] = buffer_end[0];
+        buffer_start[1] = buffer_end[1];
+        buffer_start[2] = buffer_end[2];
+        // ループ
+        cursor -= buffer_end - buffer_start;
     }
     comb->cursor = cursor;
 }
@@ -88,14 +116,36 @@ void allpass_filter_process4_work(const float *input, float *__restrict__ output
     float *cursor = allpass->cursor;
     float g = allpass->g;
     float *buffer_end = allpass->buffer_end;
+
+    // bufferのループ処理をforループ内で行う代わりにその前後で行う
+    bool should_loop = (cursor + 4) >= buffer_end;
+    if (should_loop)
+    {
+        // バッファの始まりの部分をバッファの直後にコピーしておく
+        buffer_end[0] = buffer_start[0];
+        buffer_end[1] = buffer_start[1];
+        buffer_end[2] = buffer_start[2];
+    }
+
+    // 実際のオールパスフィルター処理
     for (uint_fast8_t i = 0; i < 4; i++)
     {
         float readback = *cursor;
         readback += (-g) * input[i];
         const float newValue = readback * g + input[i];
         *cursor = newValue;
-        if (++cursor >= buffer_end) cursor = buffer_start;
+        cursor++;
         output[i] = readback; // コムフィルターと異なり上書きする
+    }
+
+    if (should_loop)
+    {
+        // コピーしておいたバッファの一部分を元の場所に戻す
+        buffer_start[0] = buffer_end[0];
+        buffer_start[1] = buffer_end[1];
+        buffer_start[2] = buffer_end[2];
+        // ループ
+        cursor -= buffer_end - buffer_start;
     }
     allpass->cursor = cursor;
 }
