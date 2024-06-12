@@ -72,6 +72,49 @@ inline void comb_filter_process4(const float *input, float *__restrict__ output,
     }
 
     // 実際のコムフィルター処理
+#if CONFIG_IDF_TARGET_ESP32S3
+    // ESP32S3の場合はSIMD命令を使って高速化
+    __asm__ (
+    "   lsi             f1, %0, 0               \n" // f1 = input[0]
+    "   lsi             f9, %2, 0               \n" // f9 = cursor[0]
+    "   wfr             f0, %3                  \n" // f0 = g
+    "   madd.s          f1, f0, f9              \n" // f1 += g * cursor[0]
+    "   lsi             f8, %2, 4               \n" // f8 = cursor[1]
+    "   lsi             f7, %2, 8               \n" // f7 = cursor[2]
+    "   lsi             f6, %2, 12              \n" // f6 = cursor[3]
+    "   ssi             f1, %2, 0               \n" // cursor[0] = f1
+    "   lsi             f1, %0, 4               \n" // f1 = input[1]
+    "   lsi             f5, %1, 0               \n" // f5 = output[0]
+    "   madd.s          f1, f0, f8              \n" // f1 += g * cursor[1]
+    "   lsi             f4, %1, 4               \n" // f4 = output[1]
+    "   lsi             f3, %1, 8               \n" // f3 = output[2]
+    "   add.s           f5, f5, f9              \n" // f5 += cursor[0]
+    "   ssi             f1, %2, 4               \n" // cursor[1] = f1
+    "   lsi             f2, %0, 8               \n" // f2 = input[2]
+    "   lsi             f1, %1, 12              \n" // f1 = output[3]
+    "   madd.s          f2, f0, f7              \n" // f2 += g * cursor[2]
+    "   add.s           f4, f4, f8              \n" // f4 += cursor[1]
+    "   add.s           f3, f3, f7              \n" // f3 += cursor[2]
+    "   add.s           f1, f1, f6              \n" // f1 += cursor[3]
+    "   ssi             f2, %2, 8               \n" // cursor[2] = f2
+    "   lsi             f2, %0, 12              \n" // f2 = input[3]
+    "   ssi             f5, %1, 0               \n" // output[0] = f5
+    "   madd.s          f2, f6, f0              \n" // f2 += cursor[3] * g
+    "   ssi             f4, %1, 4               \n" // output[1] = f4
+    "   ssi             f3, %1, 8               \n" // output[2] = f3
+    "   ssi             f1, %1, 12              \n" // output[3] = f1
+    "   ssi             f2, %2, 12              \n" // cursor[3] = f2
+    : // output-list            // アセンブリ言語からC/C++への受渡し
+    : // input-list             // C/C++からアセンブリ言語への受渡し
+        "r" ( input ),          // %0 = input
+        "r" ( output ),         // %1 = output
+        "r" ( cursor ),         // %2 = cursor
+        "r" ( g )               // %3 = g
+    : // clobber-list           // 値を書き換えたレジスタの申告
+        "f0", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9"
+    );
+    cursor += 4;
+#else
     for (uint_fast8_t i = 0; i < 4; i++)
     {
         const float readback = *cursor;
@@ -80,6 +123,7 @@ inline void comb_filter_process4(const float *input, float *__restrict__ output,
         cursor++;
         output[i] += readback; // このリバーブではコムフィルターは並列でのみ用いられるので、加算したほうが処理の都合がいい
     }
+#endif
 
     if (should_loop)
     {
@@ -113,6 +157,45 @@ inline void allpass_filter_process4(const float *input, float *__restrict__ outp
     }
 
     // 実際のオールパスフィルター処理
+#if CONFIG_IDF_TARGET_ESP32S3
+    // ESP32S3の場合はSIMD命令を使って高速化
+    __asm__ (
+    "   lsi             f1, %0, 0               \n" // f1 = input[0]
+    "   lsi             f5, %2, 0               \n" // f5 = cursor[0]
+    "   wfr             f0, %3                  \n" // f0 = g
+    "   msub.s          f5, f0, f1              \n" // f5 -= g * input[0]
+    "   lsi             f4, %2, 4               \n" // f4 = cursor[1]
+    "   lsi             f3, %2, 8               \n" // f3 = cursor[2]
+    "   lsi             f2, %2, 12              \n" // f2 = cursor[3]
+    "   madd.s          f1, f0, f5              \n" // f1 += g * f5
+    "   ssi             f5, %1, 0               \n" // output[0] = f5
+    "   ssi             f1, %2, 0               \n" // cursor[0] = f1
+    "   lsi             f1, %0, 4               \n" // f1 = input[1]
+    "   msub.s          f4, f0, f1              \n" // f4 -= g * input[1]
+    "   madd.s          f1, f0, f4              \n" // f1 += g * f4
+    "   ssi             f4, %1, 4               \n" // output[1] = f4
+    "   ssi             f1, %2, 4               \n" // cursor[1] = f1
+    "   lsi             f1, %0, 8               \n" // f1 = input[2]
+    "   msub.s          f3, f0, f1              \n" // f3 -= g * input[2]
+    "   madd.s          f1, f0, f3              \n" // f1 += g * f3
+    "   ssi             f3, %1, 8               \n" // output[2] = f3
+    "   ssi             f1, %2, 8               \n" // cursor[2] = f1
+    "   lsi             f1, %0, 12              \n" // f1 = input[3]
+    "   msub.s          f2, f1, f0              \n" // f2 -= input[3] * g
+    "   madd.s          f1, f0, f2              \n" // f1 += g * f2
+    "   ssi             f2, %1, 12              \n" // output[3] = f2
+    "   ssi             f1, %2, 12              \n" // cursor[3] = f1
+    : // output-list            // アセンブリ言語からC/C++への受渡し
+    : // input-list             // C/C++からアセンブリ言語への受渡し
+        "r" ( input ),          // %0 = input
+        "r" ( output ),         // %1 = output
+        "r" ( cursor ),         // %2 = cursor
+        "r" ( g )               // %3 = g
+    : // clobber-list           // 値を書き換えたレジスタの申告
+        "f0", "f1", "f2", "f3", "f4", "f5"
+    );
+    cursor += 4;
+#else
     for (uint_fast8_t i = 0; i < 4; i++)
     {
         float readback = *cursor;
@@ -122,6 +205,7 @@ inline void allpass_filter_process4(const float *input, float *__restrict__ outp
         cursor++;
         output[i] = readback; // コムフィルターと異なり上書きする
     }
+#endif
 
     if (should_loop)
     {
