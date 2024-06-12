@@ -3,16 +3,7 @@
 
 // 各フィルターの設定
 // バッファの後ろは3サンプル以上空けておく必要がある
-struct comb_t
-{
-    // buffer_end - buffer_start = 遅延の長さ(サンプル数)
-    // buffer_end[0] - buffer_end[2]はバッファに含まれないがメモリとして自由に使える領域
-    float *buffer_start;
-    float *cursor;
-    float g; // フィードバックのレベル 一般的にgで表される
-    float *buffer_end;
-};
-struct allpass_t
+struct filter_t
 {
     // buffer_end - buffer_start = 遅延の長さ(サンプル数)
     // buffer_end[0] - buffer_end[2]はバッファに含まれないがメモリとして自由に使える領域
@@ -22,8 +13,8 @@ struct allpass_t
     float *buffer_end;
 };
 
-struct comb_t combs[4];
-struct allpass_t allpasses[3];
+struct filter_t combs[4];
+struct filter_t allpasses[3];
 
 void EffectReverb::Init()
 {
@@ -45,31 +36,25 @@ void EffectReverb::Init()
     else if (time < 0.02) time = 0.02;
 
     float *cursor = memory;
-    combs[0] = comb_t{cursor, cursor, 0.805f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_0)};
+    combs[0] = filter_t{cursor, cursor, 0.805f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_0)};
     cursor += REVERB_DELAY_BASIS_COMB_0 + 3;
-    combs[1] = comb_t{cursor, cursor, 0.827f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_1)};
+    combs[1] = filter_t{cursor, cursor, 0.827f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_1)};
     cursor += REVERB_DELAY_BASIS_COMB_1 + 3;
-    combs[2] = comb_t{cursor, cursor, 0.783f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_2)};
+    combs[2] = filter_t{cursor, cursor, 0.783f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_2)};
     cursor += REVERB_DELAY_BASIS_COMB_2 + 3;
-    combs[3] = comb_t{cursor, cursor, 0.764f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_3)};
+    combs[3] = filter_t{cursor, cursor, 0.764f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_COMB_3)};
     cursor += REVERB_DELAY_BASIS_COMB_3 + 3;
-    allpasses[0] = allpass_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_0)};
+    allpasses[0] = filter_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_0)};
     cursor += REVERB_DELAY_BASIS_ALL_0 + 3;
-    allpasses[1] = allpass_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_1)};
+    allpasses[1] = filter_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_1)};
     cursor += REVERB_DELAY_BASIS_ALL_1 + 3;
-    allpasses[2] = allpass_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_2)};
+    allpasses[2] = filter_t{cursor, cursor, 0.7f, cursor + (uint32_t)(time * REVERB_DELAY_BASIS_ALL_2)};
     cursor += REVERB_DELAY_BASIS_ALL_2 + 3;
 }
 
-extern "C"
-{
-    void comb_filter_process4_work(const float *input, float *__restrict__ output, struct comb_t *comb);
-    void allpass_filter_process4_work(const float *input, float *__restrict__ output, struct allpass_t *allpass);
-}
-
 // コムフィルター処理を4サンプル進める
-__attribute((weak, optimize("-O3")))
-void comb_filter_process4_work(const float *input, float *__restrict__ output, struct comb_t *comb)
+__attribute((optimize("-O3")))
+inline void comb_filter_process4(const float *input, float *__restrict__ output, struct filter_t *comb)
 {
     float *buffer_start = comb->buffer_start;
     float *cursor = comb->cursor;
@@ -109,8 +94,8 @@ void comb_filter_process4_work(const float *input, float *__restrict__ output, s
 }
 
 // オールパスフィルター処理を4サンプル進める
-__attribute((weak, optimize("-O3")))
-void allpass_filter_process4_work(const float *input, float *__restrict__ output, struct allpass_t *allpass)
+__attribute((optimize("-O3")))
+inline void allpass_filter_process4(const float *input, float *__restrict__ output, struct filter_t *allpass)
 {
     float *buffer_start = allpass->buffer_start;
     float *cursor = allpass->cursor;
@@ -178,14 +163,14 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
         // 4つのコムフィルター(並列)
         for (uint_fast8_t f = 0; f < 4; f++)
         {
-            comb_filter_process4_work(buf, pr, &combs[f]); // 内部でprocessedに加算される
+            comb_filter_process4(buf, pr, &combs[f]); // 内部でprocessedに加算される
         }
         // コムフィルターの出力は本来足して平均を取るべきだが、最初に0.25を掛けているので単純に足し合わせるだけでOK
 
         // 3つのオールパスフィルター(直列)
         for (uint_fast8_t f = 0; f < 3; f++)
         {
-            allpass_filter_process4_work(pr, pr, &allpasses[f]); // processedは内部で上書きされる
+            allpass_filter_process4(pr, pr, &allpasses[f]); // processedは内部で上書きされる
         }
 
         // 原音と合わせて出力
