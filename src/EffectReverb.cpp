@@ -219,6 +219,7 @@ inline void allpass_filter_process4(const float *input, float *__restrict__ outp
     allpass->cursor = cursor;
 }
 
+#if 0
 __attribute((optimize("-O3")))
 void EffectReverb::Process(const float *input, float *__restrict__ output)
 {
@@ -270,3 +271,199 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
         out += 4;
     } while (--length);
 }
+
+#else
+__attribute((optimize("-O3")))
+void comb_filter_process(const float *input, float *output, struct filter_t *comb, size_t len)
+{
+    float *buffer_start = comb->buffer_start;
+    float *cursor = comb->cursor;
+    float g = comb->g;
+    float *buffer_end = comb->buffer_end;
+
+    do
+    {
+        // バッファ終端までの容量で処理できるループ数を計算
+        // 4の倍数にするために+3して 下位2bitを捨てる
+        size_t remain = (buffer_end - cursor + 3) & ~3;
+//★バッファ先頭からスタートする場合はバッファを終端まで使い切らない。
+// これによりバッファ終端と先頭を繋ぐ処理を挟めるようにする。
+        if (remain > 4 && (cursor-buffer_start) < 4) {
+            remain -= 4;
+        }
+        if (len < remain) {
+            remain = len;
+        }
+        len -= remain;
+        // 一度に4サンプル処理するのでループ回数を1/4にする
+        remain >>= 2;
+        for (size_t i = 0; i < remain; i++)
+        {
+//★このへんをSIMD命令で4サンプル読書きに変更すると高速化できるかもしれない
+// その場合はbuffer_startが16バイトアラインされていることが前提になるため、
+// 初期化時にアライメント調整してバッファを割り当てる工夫が必要。
+            const float readback0 = cursor[0];
+            const float readback1 = cursor[1];
+            const float readback2 = cursor[2];
+            const float readback3 = cursor[3];
+            float outValue0 = output[0];
+            float outValue1 = output[1];
+            float outValue2 = output[2];
+            float outValue3 = output[3];
+            outValue0 += readback0; // このリバーブではコムフィルターは並列でのみ用いられるので、加算したほうが処理の都合がいい
+            outValue1 += readback1;
+            outValue2 += readback2;
+            outValue3 += readback3;
+            const float inValue0 = input[0];
+            const float inValue1 = input[1];
+            const float inValue2 = input[2];
+            const float inValue3 = input[3];
+            output[0] = outValue0;
+            output[1] = outValue1;
+            output[2] = outValue2;
+            output[3] = outValue3;
+            cursor[0] = readback0 * g + inValue0;
+            cursor[1] = readback1 * g + inValue1;
+            cursor[2] = readback2 * g + inValue2;
+            cursor[3] = readback3 * g + inValue3;
+            input += 4;
+            cursor += 4;
+            output += 4;
+        }
+        // バッファ終端と先頭をノイズなくつなげるための処理
+//★ここもSIMD 4並列化してもよい。その場合はバッファ末尾のマージンを 3ではなく4にしておくとよい。
+        if (cursor >= buffer_end) {
+            cursor -= buffer_end - buffer_start;
+            buffer_start[0] = buffer_end[0];
+            buffer_start[1] = buffer_end[1];
+            buffer_start[2] = buffer_end[2];
+        } else {
+//★分岐のこちら側は、バッファの先頭を使った直後にしか必要がない処理ではあるが、
+//必要が無いのにここを通る回数はそれほど多くないので気にする必要はあまりないと思われる。
+            buffer_end[0] = buffer_start[0];
+            buffer_end[1] = buffer_start[1];
+            buffer_end[2] = buffer_start[2];
+        }
+    } while (len);
+    comb->cursor = cursor;
+}
+
+__attribute((optimize("-O3")))
+void allpass_filter_process(const float *input, float *output, struct filter_t *allpass, size_t len)
+{
+    float *buffer_start = allpass->buffer_start;
+    float *cursor = allpass->cursor;
+    float g = allpass->g;
+    float *buffer_end = allpass->buffer_end;
+
+    do
+    {
+        // バッファ終端までの容量で処理できるループ数を計算
+        // 4の倍数にするために+3して 下位2bitを捨てる
+        size_t remain = (buffer_end - cursor + 3) & ~3;
+//★バッファ先頭からスタートする場合はバッファを終端まで使い切らない。
+// これによりバッファ終端と先頭を繋ぐ処理を挟めるようにする。
+        if (remain > 4 && (cursor-buffer_start) < 4) {
+            remain -= 4;
+        }
+        if (len < remain) {
+            remain = len;
+        }
+        len -= remain;
+        // 一度に4サンプル処理するのでループ回数を1/4にする
+        remain >>= 2;
+        for (size_t i = 0; i < remain; i++)
+        {
+            float readback0 = cursor[0];
+            float readback1 = cursor[1];
+            float readback2 = cursor[2];
+            float readback3 = cursor[3];
+            float newValue0 = input[0];
+            float newValue1 = input[1];
+            float newValue2 = input[2];
+            float newValue3 = input[3];
+            readback0 += (-g) * newValue0;
+            readback1 += (-g) * newValue1;
+            readback2 += (-g) * newValue2;
+            readback3 += (-g) * newValue3;
+            newValue0 += readback0 * g;
+            newValue1 += readback1 * g;
+            newValue2 += readback2 * g;
+            newValue3 += readback3 * g;
+            cursor[0] = newValue0;
+            cursor[1] = newValue1;
+            cursor[2] = newValue2;
+            cursor[3] = newValue3;
+            output[0] = readback0;
+            output[1] = readback1;
+            output[2] = readback2;
+            output[3] = readback3;
+            input += 4;
+            cursor += 4;
+            output += 4;
+        }
+        // バッファ終端と先頭をノイズなくつなげるための処理
+        if (cursor >= buffer_end) {
+            cursor -= buffer_end - buffer_start;
+            buffer_start[0] = buffer_end[0];
+            buffer_start[1] = buffer_end[1];
+            buffer_start[2] = buffer_end[2];
+        } else {
+            buffer_end[0] = buffer_start[0];
+            buffer_end[1] = buffer_start[1];
+            buffer_end[2] = buffer_start[2];
+        }
+    } while (len);
+    allpass->cursor = cursor;
+}
+
+__attribute((optimize("-O3")))
+void EffectReverb::Process(const float *input, float *__restrict__ output)
+{
+    // 最初に振幅を下げてここに格納しておく(リバーブの効果は絶対的な振幅に影響されないためOK)
+//★後ほどSIMD化する可能性を考慮して16バイトアラインメント指定を入れておく
+    float buffer[bufferSize] __attribute__ ((aligned (16)));
+    float multiplier = level * 0.25f; // 0.25fはコムフィルターの平均を取るため
+
+    float processed[bufferSize] __attribute__ ((aligned (16))) = {0.0f,}; // これが最終的にリバーブ成分になる
+
+    uint32_t length = bufferSize >> 2; // 1ループで4サンプル処理する
+    const float *in = input;
+    float *buf = buffer;
+    do
+    {
+        buf[0] = in[0] * multiplier;
+        buf[1] = in[1] * multiplier;
+        buf[2] = in[2] * multiplier;
+        buf[3] = in[3] * multiplier;
+        in += 4;
+        buf += 4;
+    } while (--length);
+
+    // 4つのコムフィルター(並列)
+    for (uint_fast8_t f = 0; f < 4; f++)
+    {
+        comb_filter_process(buffer, processed, &combs[f], bufferSize); // 内部でprocessedに加算される
+    }
+    // コムフィルターの出力は本来足して平均を取るべきだが、最初に0.25を掛けているので単純に足し合わせるだけでOK
+
+    // 3つのオールパスフィルター(直列)
+    for (uint_fast8_t f = 0; f < 3; f++)
+    {
+        allpass_filter_process(processed, processed, &allpasses[f], bufferSize); // processedは内部で上書きされる
+    }
+
+    length = bufferSize >> 2; // 1ループで4サンプル処理する
+    float *pr = processed;
+    float *out = output;
+    do
+    {   // 原音と合わせて出力 … (要確認:これは += にするもの？)
+        out[0] = pr[0];
+        out[1] = pr[1];
+        out[2] = pr[2];
+        out[3] = pr[3];
+        pr += 4;
+        out += 4;
+    } while (--length);
+}
+#endif
