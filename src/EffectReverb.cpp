@@ -297,19 +297,20 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
     float processed[bufferSize] __attribute__((aligned(16))) = {0.0f}; // これが最終的にリバーブ成分になる
 #endif
 
-    // 入力の振幅を下げてbufferに格納
-    uint32_t length = bufferSize >> 2; // 1ループで4サンプル処理する
-    const float *in = input;
-    float *buf = buffer;
-    do
-    {
-        buf[0] = in[0] * multiplier;
-        buf[1] = in[1] * multiplier;
-        buf[2] = in[2] * multiplier;
-        buf[3] = in[3] * multiplier;
-        in += 4;
-        buf += 4;
-    } while (--length);
+    { // 入力の振幅を下げてbufferに格納
+        uint32_t length = bufferSize >> 2; // 1ループで4サンプル処理する
+        const float *in = input;
+        float *buf = buffer;
+        do
+        {
+            buf[0] = in[0] * multiplier;
+            buf[1] = in[1] * multiplier;
+            buf[2] = in[2] * multiplier;
+            buf[3] = in[3] * multiplier;
+            in += 4;
+            buf += 4;
+        } while (--length);
+    }
 
     // 4つのコムフィルター(並列)
     for (uint_fast8_t f = 0; f < 4; f++)
@@ -325,17 +326,20 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
         allpass_filter_process(processed, processed, &allpasses[f], bufferSize); // processedは内部で上書きされる
     }
 
-    // 原音と合わせて出力 (今は動作確認のためリバーブ成分のみ)
-    length = bufferSize >> 2; // 1ループで4サンプル処理する
-    float *pr = processed;
-    float *out = output;
-    do
-    {
-        out[0] = pr[0];
-        out[1] = pr[1];
-        out[2] = pr[2];
-        out[3] = pr[3];
-        pr += 4;
-        out += 4;
-    } while (--length);
+    { // 原音と合わせて出力
+        uint32_t length = bufferSize >> 2; // 1ループで4サンプル処理する
+        const float *in = input;
+        float *pr = processed;
+        float *out = output;
+        do
+        {
+            out[0] = in[0] + pr[0];
+            out[1] = in[1] + pr[1];
+            out[2] = in[2] + pr[2];
+            out[3] = in[3] + pr[3];
+            in += 4;
+            pr += 4;
+            out += 4;
+        } while (--length);
+    }
 }
