@@ -57,13 +57,6 @@ void EffectReverb::Init()
     cursor += (REVERB_DELAY_BASIS_ALL_1 + 3) & ~0b11;
     allpasses[2] = filter_t{cursor, cursor, 0.7f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_ALL_2) & ~0b11)};
     cursor += (REVERB_DELAY_BASIS_ALL_2 + 3) & ~0b11;
-
-    M5.Log.printf("memory: %x, comb0: %x-%x, comb1: %x-%x, comb3: %x-%x, comb4: %x-%x",
-        memory,
-        combs[0].buffer_start, combs[0].buffer_end,
-        combs[1].buffer_start, combs[1].buffer_end,
-        combs[2].buffer_start, combs[2].buffer_end,
-        combs[3].buffer_start, combs[3].buffer_end);
 }
 
 __attribute((noinline, optimize("-O3")))
@@ -99,23 +92,23 @@ void comb_filter_process(const float *input, float *output, struct filter_t *com
         __asm__ (
         // f0 |   f1 - f4   |   f5 - f8   |  f9 - f12  |
         //  g | readback3-0 | outValue3-0 | inValue3-0 | 
-        "   wfr             f0, %4                   \n" // f0 = g
-        "   beqz.n          %0, COMB_LOOP_END        \n"
-        "   loop            %0, COMB_LOOP_END        \n" // remain回ループ
-        "   ee.ldf.128.ip   f1, f2, f3, f4, %3, 0    \n" // readback3-0 = cursor[3-0]
-        "   ee.ldf.128.ip   f5, f6, f7, f8, %2, 0    \n" // outValue3-0 = output[3-0]
-        "   ee.ldf.128.ip   f9, f10, f11, f12, %1, 16\n" // inValue3-0 = input[3-0]; input += 4
-        "   add.s           f8, f4, f8               \n" // outValue0 += readback0
-        "   add.s           f7, f3, f7               \n" // outValue1 += readback1
-        "   add.s           f6, f2, f6               \n" // outValue2 += readback2
-        "   add.s           f5, f1, f5               \n" // outValue3 += readback3
-        "   madd.s          f12, f0, f4              \n" // inValue0 += g * readback0
-        "   madd.s          f11, f0, f3              \n" // inValue1 += g * readback1
-        "   madd.s          f10, f0, f2              \n" // inValue2 += g * readback2
-        "   madd.s          f9, f0, f1               \n" // inValue3 += g * readback3
-        "   ee.stf.128.ip   f5, f6, f7, f8, %2, 16   \n" // output[3-0] = outValue3-0; output += 4
-        "   ee.stf.128.ip   f9, f10, f11, f12, %3, 16\n" // cursor[3-0] = inValue3-0; cursor += 4
-        "COMB_LOOP_END:                              \n"
+        "   wfr             f0, %4                    \n" // f0 = g
+        "   beqz.n          %0, REVERB_COMB_LOOP_END  \n"
+        "   loop            %0, REVERB_COMB_LOOP_END  \n" // remain回ループ
+        "   ee.ldf.128.ip   f1, f2, f3, f4, %3, 0     \n" // readback3-0 = cursor[3-0]
+        "   ee.ldf.128.ip   f5, f6, f7, f8, %2, 0     \n" // outValue3-0 = output[3-0]
+        "   ee.ldf.128.ip   f9, f10, f11, f12, %1, 16 \n" // inValue3-0 = input[3-0]; input += 4
+        "   add.s           f8, f4, f8                \n" // outValue0 += readback0
+        "   add.s           f7, f3, f7                \n" // outValue1 += readback1
+        "   add.s           f6, f2, f6                \n" // outValue2 += readback2
+        "   add.s           f5, f1, f5                \n" // outValue3 += readback3
+        "   madd.s          f12, f0, f4               \n" // inValue0 += g * readback0
+        "   madd.s          f11, f0, f3               \n" // inValue1 += g * readback1
+        "   madd.s          f10, f0, f2               \n" // inValue2 += g * readback2
+        "   madd.s          f9, f0, f1                \n" // inValue3 += g * readback3
+        "   ee.stf.128.ip   f5, f6, f7, f8, %2, 16    \n" // output[3-0] = outValue3-0; output += 4
+        "   ee.stf.128.ip   f9, f10, f11, f12, %3, 16 \n" // cursor[3-0] = inValue3-0; cursor += 4
+        "REVERB_COMB_LOOP_END:                        \n"
         : // output-list            // アセンブリ言語からC/C++への受渡し
         : // input-list             // C/C++からアセンブリ言語への受渡し
             "r" ( remain ),         // %0 = remain
@@ -166,7 +159,6 @@ void comb_filter_process(const float *input, float *output, struct filter_t *com
             buffer_start[0] = buffer_end[0];
             buffer_start[1] = buffer_end[1];
             buffer_start[2] = buffer_end[2];
-            // buffer_start[3] = buffer_end[3]; // SIMDを使う場合は実質的にここも行われる
         }
         else
         {
@@ -174,7 +166,6 @@ void comb_filter_process(const float *input, float *output, struct filter_t *com
             buffer_end[0] = buffer_start[0];
             buffer_end[1] = buffer_start[1];
             buffer_end[2] = buffer_start[2];
-            // buffer_end[3] = buffer_start[3]; // SIMDを使う場合は実質的にここも行われる
         }
     } while (len);
     comb->cursor = cursor;
@@ -213,22 +204,22 @@ void allpass_filter_process(const float *input, float *output, struct filter_t *
         __asm__ (
         // f0 |   f1 - f4   |   f5 - f8   |
         //  g | readback3-0 | newValue3-0 |
-        "   wfr             f0, %4                  \n" // f0 = g
-        "   beqz.n          %0, ALLPASS_LOOP_END    \n"
-        "   loop            %0, ALLPASS_LOOP_END    \n" // remain回ループ
-        "   ee.ldf.128.ip   f5, f6, f7, f8, %1, 16  \n" // newValue3-0 = input[3-0]; input += 4
-        "   ee.ldf.128.ip   f1, f2, f3, f4, %3, 0   \n" // readback3-0 = cursor[3-0]
-        "   msub.s          f4, f0, f8              \n" // readback0 -= g * newValue0
-        "   msub.s          f3, f0, f7              \n" // readback1 -= g * newValue1
-        "   msub.s          f2, f0, f6              \n" // readback2 -= g * newValue2
-        "   msub.s          f1, f0, f5              \n" // readback3 -= g * newValue3
-        "   madd.s          f8, f0, f4              \n" // newValue0 += g * readback0
-        "   madd.s          f7, f0, f3              \n" // newValue1 += g * readback1
-        "   madd.s          f6, f0, f2              \n" // newValue2 += g * readback2
-        "   madd.s          f5, f0, f1              \n" // newValue3 += g * readback3
-        "   ee.stf.128.ip   f5, f6, f7, f8, %3, 16  \n" // cursor[3-0] = newValue3-0; cursor += 4
-        "   ee.stf.128.ip   f1, f2, f3, f4, %2, 16  \n" // output[3-0] = readback3-0; output += 4
-        "ALLPASS_LOOP_END:                          \n"
+        "   wfr             f0, %4                      \n" // f0 = g
+        "   beqz.n          %0, REVERB_ALLPASS_LOOP_END \n"
+        "   loop            %0, REVERB_ALLPASS_LOOP_END \n" // remain回ループ
+        "   ee.ldf.128.ip   f5, f6, f7, f8, %1, 16      \n" // newValue3-0 = input[3-0]; input += 4
+        "   ee.ldf.128.ip   f1, f2, f3, f4, %3, 0       \n" // readback3-0 = cursor[3-0]
+        "   msub.s          f4, f0, f8                  \n" // readback0 -= g * newValue0
+        "   msub.s          f3, f0, f7                  \n" // readback1 -= g * newValue1
+        "   msub.s          f2, f0, f6                  \n" // readback2 -= g * newValue2
+        "   msub.s          f1, f0, f5                  \n" // readback3 -= g * newValue3
+        "   madd.s          f8, f0, f4                  \n" // newValue0 += g * readback0
+        "   madd.s          f7, f0, f3                  \n" // newValue1 += g * readback1
+        "   madd.s          f6, f0, f2                  \n" // newValue2 += g * readback2
+        "   madd.s          f5, f0, f1                  \n" // newValue3 += g * readback3
+        "   ee.stf.128.ip   f5, f6, f7, f8, %3, 16      \n" // cursor[3-0] = newValue3-0; cursor += 4
+        "   ee.stf.128.ip   f1, f2, f3, f4, %2, 16      \n" // output[3-0] = readback3-0; output += 4
+        "REVERB_ALLPASS_LOOP_END:                       \n"
         : // output-list            // アセンブリ言語からC/C++への受渡し
         : // input-list             // C/C++からアセンブリ言語への受渡し
             "r" ( remain ),         // %0 = remain
@@ -279,7 +270,6 @@ void allpass_filter_process(const float *input, float *output, struct filter_t *
             buffer_start[0] = buffer_end[0];
             buffer_start[1] = buffer_end[1];
             buffer_start[2] = buffer_end[2];
-            // buffer_start[3] = buffer_end[3]; // SIMDを使う場合は実質的にここも行われる
         }
         else
         {
@@ -287,7 +277,6 @@ void allpass_filter_process(const float *input, float *output, struct filter_t *
             buffer_end[0] = buffer_start[0];
             buffer_end[1] = buffer_start[1];
             buffer_end[2] = buffer_start[2];
-            // buffer_end[3] = buffer_start[3]; // SIMDを使う場合は実質的にここも行われる
         }
     } while (len);
     allpass->cursor = cursor;
