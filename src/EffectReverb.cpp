@@ -346,39 +346,35 @@ void bandpass_filter_process(const float *input, float *output, struct biquad_fi
     "   lsi             f2, %3, 4                    \n" // f2 = in_m1
     "   beqz.n          %0, REVERB_BANDPASS_LOOP_END \n"
     "   loop            %0, REVERB_BANDPASS_LOOP_END \n" // len回ループ
+    "   mul.s           f7, f10, f3                  \n" // f7 = f_in2 * in_m2
     "   lsi             f1, %1, 0                    \n" // f1 = in_0
+    "   mul.s           f6, f10, f2                  \n" // f6 = f_in2 * in_m1
     "   lsi             f0, %1, 4                    \n" // f0 = in_1
-    "   mul.s           f7, f12, f1                  \n" // f7 = f_in * in_0
-    "   mul.s           f6, f12, f0                  \n" // f6 = f_in * in_1
-    "   madd.s           f7, f11, f2                 \n" // f7 += f_in1 * in_m1
-    "   madd.s           f6, f11, f1                 \n" // f6 += f_in1 * in_0
-    "   madd.s           f7, f10, f3                 \n" // f7 += f_in2 * in_m2
-    "   madd.s           f6, f10, f2                 \n" // f6 += f_in2 * in_m1
-    "   msub.s           f7, f9, f4                  \n" // f7 -= f_out1 * out_m1
-    "   msub.s           f7, f8, f5                  \n" // f7 -= f_out2 * out_m2
-    "   msub.s           f6, f9, f7                  \n" // f6 -= f_out1 * out_0
-    "   msub.s           f6, f8, f4                  \n" // f6 -= f_out2 * out_m1
+    "   madd.s          f7, f12, f1                  \n" // f7 += f_in * in_0
+    "   madd.s          f6, f12, f0                  \n" // f6 += f_in * in_1
+    "   madd.s          f7, f11, f2                  \n" // f7 += f_in1 * in_m1
+    "   msub.s          f7, f9, f4                   \n" // f7 -= f_out1 * out_m1
+    "   lsi             f3, %1, 8                    \n" // f3 = in_2
+    "   madd.s          f6, f11, f1                  \n" // f6 += f_in1 * in_0
+    "   msub.s          f7, f8, f5                   \n" // f7 -= f_out2 * out_m2
+    "   lsi             f2, %1, 12                   \n" // f2 = in_3
     //  f0 -- f1 | f2 -- f3 | f4 - f5 | f6 - f7 |
     //   in_1-0  |  in_3-2  | out_3-2 | out_1-0 |
-    "   lsi             f3, %1, 8                    \n" // f3 = in_2
-    "   lsi             f2, %1, 12                   \n" // f2 = in_3
-    "   mul.s           f5, f12, f3                  \n" // f5 = f_in * in_2
-    "   mul.s           f4, f12, f2                  \n" // f4 = f_in * in_3
-    "   madd.s           f5, f11, f0                 \n" // f5 += f_in1 * in_1
-    "   madd.s           f4, f11, f3                 \n" // f4 += f_in1 * in_2
-    "   madd.s           f5, f10, f1                 \n" // f5 += f_in2 * in_0
-    "   madd.s           f4, f10, f0                 \n" // f4 += f_in2 * in_1
-    "   msub.s           f5, f9, f6                  \n" // f5 -= f_out1 * out_1
-    "   msub.s           f5, f8, f7                  \n" // f5 -= f_out2 * out_0
-    "   msub.s           f4, f9, f5                  \n" // f4 -= f_out1 * out_2
-    "   msub.s           f4, f8, f6                  \n" // f4 -= f_out2 * out_1
+    "   mul.s           f5, f10, f1                  \n" // f5 = f_in2 * in_0
+    "   msub.s          f6, f8, f4                   \n" // f6 -= f_out2 * out_m1
+    "   mul.s           f4, f10, f0                  \n" // f4 = f_in2 * in_1
+    "   madd.s          f5, f12, f3                  \n" // f5 += f_in * in_2
+    "   madd.s          f4, f12, f2                  \n" // f4 += f_in * in_3
+    "   msub.s          f6, f9, f7                   \n" // f6 -= f_out1 * out_0
+    "   madd.s          f5, f11, f0                  \n" // f5 += f_in1 * in_1
+    "   madd.s          f4, f11, f3                  \n" // f4 += f_in1 * in_2
+    "   msub.s          f5, f9, f6                   \n" // f5 -= f_out1 * out_1
+    "   addi            %1, %1, 16                   \n" // in += 4
+    "   msub.s          f4, f8, f6                   \n" // f4 -= f_out2 * out_1
+    "   msub.s          f5, f8, f7                   \n" // f5 -= f_out2 * out_0
+    "   msub.s          f4, f9, f5                   \n" // f4 -= f_out1 * out_2
     // f2-f4は次のループでそのまま1つ前/2つ前の入力/出力信号として使用されるため、更新処理をしなくてよい
-    "   ssi              f7, %2, 0                   \n" // out[0] = out0
-    "   ssi              f6, %2, 4                   \n" // out[1] = out1
-    "   ssi              f5, %2, 8                   \n" // out[2] = out2
-    "   ssi              f4, %2, 12                  \n" // out[3] = out3
-    "   addi             %1, %1, 16                  \n" // in += 4
-    "   addi             %2, %2, 16                  \n" // out += 4
+    "   ee.stf.128.ip   f4, f5, f6, f7, %2, 16       \n" // out[3-0] = out3-0; out += 4
     "REVERB_BANDPASS_LOOP_END:                       \n"
     // 次回処理に向けて直前の入力/出力を保存しておく
     "   ssi             f5, %3, 8                    \n" // out_m2 = f5
