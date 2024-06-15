@@ -20,7 +20,7 @@
 class EffectReverb : public EffectBase
 {
 public:
-    EffectReverb(float level, float time, uint32_t bufferSize) : level{level}, time{time}, bufferSize{bufferSize}
+    EffectReverb(float level, float time, uint32_t bufferSize, uint32_t sampleRate) : level{level}, time{time}, bufferSize{bufferSize}, sampleRate{sampleRate}
     {
         Init();
     }
@@ -31,6 +31,7 @@ public:
     float level = 0.05f; // リバーブの強さ 入力の音量は変化しません(DRY/WETではありません)
     float time = 1.0f;  // リバーブの持続時間
     uint32_t bufferSize; // Processで渡されるinputおよびoutputの長さ　必ず4の倍数である必要がある
+    uint32_t sampleRate;
     void Init();
     void Process(const float *input, float *output);
 

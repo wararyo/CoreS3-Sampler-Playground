@@ -101,5 +101,5 @@ private:
     // TODO: messageQueue自体の排他制御は必要ない？
     std::deque<Message> messageQueue;
 
-    EffectReverb reverb = EffectReverb(0.2f, 0.5f, SAMPLE_BUFFER_SIZE);
+    EffectReverb reverb = EffectReverb(0.2f, 0.5f, SAMPLE_BUFFER_SIZE, SAMPLE_RATE);
 };
