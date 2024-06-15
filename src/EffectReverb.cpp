@@ -352,10 +352,10 @@ void bandpass_filter_process(const float *input, float *output, struct biquad_fi
     "   lsi             f0, %1, 4                    \n" // f0 = in_1
     "   madd.s          f7, f12, f1                  \n" // f7 += f_in * in_0
     "   madd.s          f6, f12, f0                  \n" // f6 += f_in * in_1
-    "   madd.s          f7, f11, f2                  \n" // f7 += f_in1 * in_m1
+    // "   madd.s          f7, f11, f2                  \n" // f7 += f_in1 * in_m1 バンドパスフィルターはf_in1 = 0なので不要 バンドパスフィルター以外の時は復活させる
     "   msub.s          f7, f9, f4                   \n" // f7 -= f_out1 * out_m1
     "   lsi             f3, %1, 8                    \n" // f3 = in_2
-    "   madd.s          f6, f11, f1                  \n" // f6 += f_in1 * in_0
+    // "   madd.s          f6, f11, f1                  \n" // f6 += f_in1 * in_0 バンドパスフィルターはf_in1 = 0なので不要 バンドパスフィルター以外の時は復活させる
     "   msub.s          f7, f8, f5                   \n" // f7 -= f_out2 * out_m2
     "   lsi             f2, %1, 12                   \n" // f2 = in_3
     //  f0 -- f1 | f2 -- f3 | f4 - f5 | f6 - f7 |
@@ -366,8 +366,8 @@ void bandpass_filter_process(const float *input, float *output, struct biquad_fi
     "   madd.s          f5, f12, f3                  \n" // f5 += f_in * in_2
     "   madd.s          f4, f12, f2                  \n" // f4 += f_in * in_3
     "   msub.s          f6, f9, f7                   \n" // f6 -= f_out1 * out_0
-    "   madd.s          f5, f11, f0                  \n" // f5 += f_in1 * in_1
-    "   madd.s          f4, f11, f3                  \n" // f4 += f_in1 * in_2
+    // "   madd.s          f5, f11, f0                  \n" // f5 += f_in1 * in_1 バンドパスフィルターはf_in1 = 0なので不要 バンドパスフィルター以外の時は復活させる
+    // "   madd.s          f4, f11, f3                  \n" // f4 += f_in1 * in_2 バンドパスフィルターはf_in1 = 0なので不要 バンドパスフィルター以外の時は復活させる
     "   msub.s          f5, f9, f6                   \n" // f5 -= f_out1 * out_1
     "   addi            %1, %1, 16                   \n" // in += 4
     "   msub.s          f4, f8, f6                   \n" // f4 -= f_out2 * out_1
@@ -400,12 +400,6 @@ void bandpass_filter_process(const float *input, float *output, struct biquad_fi
     float f_in2 = bandpass->f_in2;
     float f_out1 = bandpass->f_out1;
     float f_out2 = bandpass->f_out2;
-
-    // バンドパスフィルター処理
-    // 1ループで4サンプルを処理する
-    const float *in = input;
-    float *out = output;
-    len >>= 2;
     do
     {
         float in_0 = in[0];
@@ -427,7 +421,6 @@ void bandpass_filter_process(const float *input, float *output, struct biquad_fi
         in += 4;
         out += 4;
     } while (--len);
-    
     // 次回処理に向けて直前の入力/出力を保存しておく
     bandpass->in1 = in_m1;
     bandpass->in2 = in_m2;
