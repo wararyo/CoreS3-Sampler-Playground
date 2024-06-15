@@ -27,7 +27,7 @@ void EffectReverb::Init()
                     REVERB_DELAY_BASIS_ALL_0 +
                     REVERB_DELAY_BASIS_ALL_1 +
                     REVERB_DELAY_BASIS_ALL_2 +
-                    3 * 8) &
+                    7 * 8) &
                    ~0b11) *
                   sizeof(float);
 #if defined(M5UNIFIED_PC_BUILD)
@@ -44,19 +44,19 @@ void EffectReverb::Init()
     // 各フィルター構造体の初期化 (バッファは16バイトアラインしておく)
     float *cursor = memory;
     combs[0] = filter_t{cursor, cursor, 0.805f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_COMB_0) & ~0b11)};
-    cursor += (REVERB_DELAY_BASIS_COMB_0 + 3) & ~0b11;
+    cursor += (REVERB_DELAY_BASIS_COMB_0 + 7) & ~0b11;
     combs[1] = filter_t{cursor, cursor, 0.827f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_COMB_1) & ~0b11)};
-    cursor += (REVERB_DELAY_BASIS_COMB_1 + 3) & ~0b11;
+    cursor += (REVERB_DELAY_BASIS_COMB_1 + 7) & ~0b11;
     combs[2] = filter_t{cursor, cursor, 0.783f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_COMB_2) & ~0b11)};
-    cursor += (REVERB_DELAY_BASIS_COMB_2 + 3) & ~0b11;
+    cursor += (REVERB_DELAY_BASIS_COMB_2 + 7) & ~0b11;
     combs[3] = filter_t{cursor, cursor, 0.764f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_COMB_3) & ~0b11)};
-    cursor += (REVERB_DELAY_BASIS_COMB_3 + 3) & ~0b11;
+    cursor += (REVERB_DELAY_BASIS_COMB_3 + 7) & ~0b11;
     allpasses[0] = filter_t{cursor, cursor, 0.7f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_ALL_0) & ~0b11)};
-    cursor += (REVERB_DELAY_BASIS_ALL_0 + 3) & ~0b11;
+    cursor += (REVERB_DELAY_BASIS_ALL_0 + 7) & ~0b11;
     allpasses[1] = filter_t{cursor, cursor, 0.7f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_ALL_1) & ~0b11)};
-    cursor += (REVERB_DELAY_BASIS_ALL_1 + 3) & ~0b11;
+    cursor += (REVERB_DELAY_BASIS_ALL_1 + 7) & ~0b11;
     allpasses[2] = filter_t{cursor, cursor, 0.7f, cursor + ((uint32_t)(time * REVERB_DELAY_BASIS_ALL_2) & ~0b11)};
-    cursor += (REVERB_DELAY_BASIS_ALL_2 + 3) & ~0b11;
+    cursor += (REVERB_DELAY_BASIS_ALL_2 + 7) & ~0b11;
 }
 
 __attribute((noinline, optimize("-O3")))
