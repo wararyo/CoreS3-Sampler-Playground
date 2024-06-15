@@ -325,29 +325,48 @@ void allpass_filter_process(const float *input, float *output, struct feedback_f
 __attribute((noinline, optimize("-O3")))
 void bandpass_filter_process(const float *input, float *output, struct biquad_filter_t *bandpass, size_t len)
 {
-    float in1 = bandpass->in1;
-    float in2 = bandpass->in2;
-    float out1 = bandpass->out1;
-    float out2 = bandpass->out2;
+    float in_m1 = bandpass->in1;
+    float in_m2 = bandpass->in2;
+    float out_m1 = bandpass->out1;
+    float out_m2 = bandpass->out2;
     float f_in = bandpass->f_in;
     float f_in1 = bandpass->f_in1;
     float f_in2 = bandpass->f_in2;
     float f_out1 = bandpass->f_out1;
     float f_out2 = bandpass->f_out2;
-    for (uint_fast8_t i; i < len; i++)
+
+    // バンドパスフィルター処理
+    // 1ループで4サンプルを処理する
+    const float *in = input;
+    float *out = output;
+    len >>= 2;
+    do
     {
-        float in = input[i];
-        float out = f_in * in + f_in1 * in1 + f_in2 * in2 - f_out1 * out1 - f_out2 * out2;
-        in2  = in1;       // 2つ前の入力信号を更新
-        in1  = in;        // 1つ前の入力信号を更新
-        out2 = out1;      // 2つ前の出力信号を更新
-        out1 = out;       // 1つ前の出力信号を更新
-        output[i] = out;
-    }
-    bandpass->in1 = in1;
-    bandpass->in2 = in2;
-    bandpass->out1 = out1;
-    bandpass->out2 = out2;
+        float in_0 = in[0];
+        float in_1 = in[1];
+        float in_2 = in[2];
+        float in_3 = in[3];
+        float out_0 = f_in * in_0 + f_in1 * in_m1 + f_in2 * in_m2 - f_out1 * out_m1 - f_out2 * out_m2;
+        float out_1 = f_in * in_1 + f_in1 * in_0 + f_in2 * in_m1 - f_out1 * out_0 - f_out2 * out_m1;
+        float out_2 = f_in * in_2 + f_in1 * in_1 + f_in2 * in_0 - f_out1 * out_1 - f_out2 * out_0;
+        float out_3 = f_in * in_3 + f_in1 * in_2 + f_in2 * in_1 - f_out1 * out_2 - f_out2 * out_1;
+        in_m2  = in_2;        // 2つ前の入力信号を更新
+        in_m1  = in_3;        // 1つ前の入力信号を更新
+        out_m2 = out_2;       // 2つ前の出力信号を更新
+        out_m1 = out_3;       // 1つ前の出力信号を更新
+        out[0] = out_0;
+        out[1] = out_1;
+        out[2] = out_2;
+        out[3] = out_3;
+        in += 4;
+        out += 4;
+    } while (--len);
+    
+    // 次回処理に向けて直前の入力/出力を保存しておく
+    bandpass->in1 = in_m1;
+    bandpass->in2 = in_m2;
+    bandpass->out1 = out_m1;
+    bandpass->out2 = out_m2;
 }
 
 __attribute((optimize("-O3")))
