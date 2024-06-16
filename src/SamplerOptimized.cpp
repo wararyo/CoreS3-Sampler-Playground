@@ -113,7 +113,7 @@ void SamplerOptimized::SamplePlayer::UpdateGain()
     case decay:
         goal = sample->sustain * volume;
         gain = (gain - goal) * sample->decay + goal;
-        if ((gain - sample->sustain) < 0.001f)
+        if ((gain - goal) < 0.001f)
         {
             adsrState = sustain;
             gain = goal;
