@@ -1,6 +1,7 @@
 #include <M5Unified.h>
 #include <SamplerBase.h>
 #include <SamplerOptimized.h>
+#include <SamplerLegacy.h>
 #include <MidiMessage.h>
 #include <vector>
 
@@ -282,8 +283,17 @@ void loop()
     M5.Display.setCursor(0, 0);
     M5.Display.println("Processing...");
 
-    SamplerOptimized sampler = SamplerOptimized();
-    time_t elapsedTime = benchmark(&sampler, song_table[song_index].song);
+    time_t elapsedTime = 0;
+    if (touch.base_y < (M5.Display.height()/2))
+    {
+      SamplerLegacy sampler = SamplerLegacy();
+      elapsedTime = benchmark(&sampler, song_table[song_index].song);
+    }
+    else
+    {
+      SamplerOptimized sampler = SamplerOptimized();
+      elapsedTime = benchmark(&sampler, song_table[song_index].song);
+    }
     
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");
