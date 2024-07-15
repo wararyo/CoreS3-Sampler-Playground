@@ -2,10 +2,15 @@
 
 #include <stdio.h>
 #include <EffectBase.h>
-#include <M5Unified.h>
 
 #if defined(M5UNIFIED_PC_BUILD)
 #include <cstdlib>
+#endif
+
+#if defined ( ARDUINO )
+#include <Arduino.h>
+#elif defined ( ESP_PLATFORM )
+// TODO ここ書く
 #endif
 
 #define REVERB_DELAY_BASIS_COMB_0 3460

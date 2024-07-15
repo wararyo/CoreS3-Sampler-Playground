@@ -78,7 +78,6 @@ void SamplerLegacy::UpdateAdsr(SamplerLegacy::SamplePlayer *player)
 
 void SamplerLegacy::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
 {
-    M5.Log.printf("Channel::NoteOn %d %d\n", noteNo, velocity);
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
@@ -219,8 +218,6 @@ void SamplerLegacy::Process(int16_t *output)
             } 
         }
     }
-
-    Reverb_Process(data, SAMPLE_BUFFER_SIZE);
 
     for (uint8_t i = 0; i < SAMPLE_BUFFER_SIZE; i++)
     {

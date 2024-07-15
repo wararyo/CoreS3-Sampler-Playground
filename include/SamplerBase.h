@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <vector>
 
+#if defined ( ARDUINO )
+#include <Arduino.h>
+#elif defined ( ESP_PLATFORM )
+// TODO ここ書く
+#endif
+
 // ADSR更新周期 (サンプル数)
 // ※ ADSRの更新周期が短いほど、ADSRの変化が滑らかになりますが、CPU負荷が増加します
 #define ADSR_UPDATE_SAMPLE_COUNT 64

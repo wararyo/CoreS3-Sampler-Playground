@@ -1,5 +1,4 @@
 #include <EffectReverb.h>
-#include <M5Unified.h>
 #include <cmath>
 #if defined(M5UNIFIED_PC_BUILD)
 #define M_PI 3.14159265359
