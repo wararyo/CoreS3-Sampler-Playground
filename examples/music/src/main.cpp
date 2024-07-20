@@ -1,7 +1,5 @@
 #include <M5Unified.h>
-#include <SamplerBase.h>
-#include <SamplerOptimized.h>
-#include <SamplerLegacy.h>
+#include <Sampler.h>
 #include <MidiMessage.h>
 #include <vector>
 
@@ -95,7 +93,7 @@ static int getCpuFrequencyMhz() { return 1; }
 #define PRO_CPU_NUM 0
 #endif
 
-uint32_t process(SamplerBase *sampler, int16_t *output)
+uint32_t process(Sampler *sampler, int16_t *output)
 {
   uint32_t cycle_begin, cycle_end;
 #if defined (M5UNIFIED_PC_BUILD)
@@ -156,7 +154,7 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
   return cycle;
 }
 
-uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
+uint32_t benchmark(Sampler *sampler, const MidiMessage *song)
 {
   // M5.Speakerに渡すバッファとして4つ用意する。(3個あればよいが循環処理をしやすくするため4個とした)
   int16_t output[4][SAMPLE_BUFFER_SIZE] = {0};
@@ -284,16 +282,9 @@ void loop()
     M5.Display.println("Processing...");
 
     time_t elapsedTime = 0;
-    if (touch.base_y < (M5.Display.height()/2))
-    {
-      SamplerLegacy sampler = SamplerLegacy();
-      elapsedTime = benchmark(&sampler, song_table[song_index].song);
-    }
-    else
-    {
-      SamplerOptimized sampler = SamplerOptimized();
-      elapsedTime = benchmark(&sampler, song_table[song_index].song);
-    }
+    Sampler sampler = Sampler();
+    elapsedTime = benchmark(&sampler, song_table[song_index].song);
+
     
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");

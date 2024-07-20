@@ -78,7 +78,7 @@ private:
     std::vector<MappedSample> samples;
 };
 
-class SamplerOptimized
+class Sampler
 {
 public:
     // 与えられたサンプルを再生する
@@ -116,14 +116,14 @@ public:
     {
     public:
         Channel() {}
-        Channel(SamplerOptimized *sampler) : sampler{sampler} {}
+        Channel(Sampler *sampler) : sampler{sampler} {}
         void NoteOn(uint8_t noteNo, uint8_t velocity);
         void NoteOff(uint8_t noteNo, uint8_t velocity);
         void PitchBend(int16_t pitchBend);
         void SetTimbre(Timbre *timbre);
 
     private:
-        SamplerOptimized *sampler; // 親サンプラー
+        Sampler *sampler; // 親サンプラー
         struct PlayingNote
         {
             uint8_t noteNo;
@@ -134,7 +134,7 @@ public:
         std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
     };
 
-    SamplerOptimized()
+    Sampler()
     {
         for (uint_fast8_t i = 0; i < CH_COUNT; i++)
             channels[i] = Channel(this);

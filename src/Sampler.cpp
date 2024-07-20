@@ -1,4 +1,4 @@
-#include <SamplerOptimized.h>
+#include <Sampler.h>
 #include <algorithm>
 #include <tables.h>
 
@@ -12,28 +12,28 @@ Sample *Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
     return nullptr;
 }
 
-void SamplerOptimized::SetTimbre(uint8_t channel, Timbre *t)
+void Sampler::SetTimbre(uint8_t channel, Timbre *t)
 {
     if(channel < CH_COUNT) channels[channel].SetTimbre(t);
 }
-void SamplerOptimized::Channel::SetTimbre(Timbre *t)
+void Sampler::Channel::SetTimbre(Timbre *t)
 {
     timbre = t;
 }
 
-void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
+void Sampler::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
     messageQueue.push_back(Message{MessageStatus::NOTE_ON, channel, noteNo, velocity, 0});
 }
-void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
+void Sampler::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
     messageQueue.push_back(Message{MessageStatus::NOTE_OFF, channel, noteNo, velocity, 0});
 }
-void SamplerOptimized::PitchBend(int16_t pitchBend, uint8_t channel)
+void Sampler::PitchBend(int16_t pitchBend, uint8_t channel)
 {
     if (channel >= CH_COUNT) return; // 無効なチャンネルの場合は何もしない
     if (pitchBend < -8192) pitchBend = -8192;
@@ -41,7 +41,7 @@ void SamplerOptimized::PitchBend(int16_t pitchBend, uint8_t channel)
     messageQueue.push_back(Message{MessageStatus::PITCH_BEND, channel, 0, 0, pitchBend});
 }
 
-void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
+void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
 {
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
@@ -49,7 +49,7 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     {
         if (sampler->players[i].playing == false)
         {
-            sampler->players[i] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
+            sampler->players[i] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
             playingNotes.push_back(PlayingNote{noteNo, i});
             return;
         }
@@ -60,10 +60,10 @@ void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
+    sampler->players[oldestPlayerId] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
 }
-void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
+void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
 {
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
     for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
@@ -80,7 +80,7 @@ void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
         }
     }
 }
-void SamplerOptimized::Channel::PitchBend(int16_t b)
+void Sampler::Channel::PitchBend(int16_t b)
 {
     pitchBend = b * 12.0f / 8192.0f;
     // 既に発音中のノートに対してピッチベンドを適用する
@@ -93,12 +93,12 @@ void SamplerOptimized::Channel::PitchBend(int16_t b)
     }
 }
 
-void SamplerOptimized::SamplePlayer::UpdatePitch()
+void Sampler::SamplePlayer::UpdatePitch()
 {
     float delta = noteNo - sample->root + pitchBend;
     pitch = ((powf(2.0f, delta / 12.0f)));
 }
-void SamplerOptimized::SamplePlayer::UpdateGain()
+void Sampler::SamplePlayer::UpdateGain()
 {
     if (!sample->adsrEnabled)
     {
@@ -197,7 +197,7 @@ void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length)
 }
 
 __attribute((optimize("-O3")))
-void SamplerOptimized::Process(int16_t* __restrict__ output)
+void Sampler::Process(int16_t* __restrict__ output)
 {
     // キューを処理する
     while (!messageQueue.empty())
