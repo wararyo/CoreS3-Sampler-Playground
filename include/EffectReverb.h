@@ -21,6 +21,11 @@
 #define REVERB_DELAY_BASIS_ALL_1 161
 #define REVERB_DELAY_BASIS_ALL_2 46
 
+namespace capsule
+{
+namespace sampler
+{
+
 // シュレーダーのリバーブ
 class EffectReverb : public EffectBase
 {
@@ -43,3 +48,6 @@ public:
 private:
     float *memory;
 };
+
+}
+}

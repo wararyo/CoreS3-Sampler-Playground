@@ -2,6 +2,11 @@
 #include <algorithm>
 #include <tables.h>
 
+namespace capsule
+{
+namespace sampler
+{
+
 Sample *Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
 {
     for (MappedSample ms : samples)
@@ -160,6 +165,9 @@ extern "C"
     void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length);
 }
 
+// なぜか関数が名前空間に入っている場合はweak属性が効かないので、ここでアーキテクチャを判定する
+#if !defined ( __XTENSA__ )
+
 // アセンブリ言語版と同様の処理を行うC/C++版の実装
 // weak属性を付けることで、アセンブリ言語版があればそちらを使う
 __attribute((weak, optimize("-O3")))
@@ -195,6 +203,8 @@ void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length)
     work->dst = d;
     work->pos_f = pos_f;
 }
+
+#endif
 
 __attribute((optimize("-O3")))
 void Sampler::Process(int16_t* __restrict__ output)
@@ -338,4 +348,7 @@ void Sampler::Process(int16_t* __restrict__ output)
         }
 #endif
     }
+}
+
+}
 }

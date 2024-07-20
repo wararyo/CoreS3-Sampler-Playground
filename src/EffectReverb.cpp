@@ -4,7 +4,12 @@
 #define M_PI 3.14159265359
 #else
 #include <bits/stdc++.h>
-#endif 
+#endif
+
+namespace capsule
+{
+namespace sampler
+{
 
 // コム/オールパスフィルターの設定
 // バッファの後ろは4サンプル以上空けておく必要がある
@@ -490,4 +495,7 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
             out += 4;
         } while (--length);
     }
+}
+
+}
 }

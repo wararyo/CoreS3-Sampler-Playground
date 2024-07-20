@@ -1,5 +1,10 @@
 #pragma once
 
+namespace capsule
+{
+namespace sampler
+{
+
 static const float velocityTable[128] = {
     0.000000f,
     0.000062f,
@@ -130,3 +135,6 @@ static const float velocityTable[128] = {
     0.984314f,
     1.000000f,
 };
+
+}
+}

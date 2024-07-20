@@ -5,6 +5,8 @@
 
 #define ENABLE_PRINTING false
 
+using namespace capsule::sampler;
+
 extern const MidiMessage simple_song[];
 extern const MidiMessage stresstest_song[];
 extern const MidiMessage neko_song[];
