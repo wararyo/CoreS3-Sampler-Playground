@@ -1,6 +1,6 @@
 #include <Sampler.h>
 #include <algorithm>
-#include <tables.h>
+#include <Tables.h>
 
 namespace capsule
 {
