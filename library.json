@@ -1,5 +1,5 @@
 {
-  "name": "ESP32Sampler",
+  "name": "CapsuleSampler",
   "version": "1.0.0",
   "description": "A sampler library for ESP32",
   "keywords": "ESP32, Sampler, Synthesizer, MIDI",
