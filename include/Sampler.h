@@ -91,11 +91,11 @@ namespace sampler
                 UpdatePitch();
                 gain = volume;
             }
-            SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{sampler::micros()} {}
+            SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, createdAt{sampler::micros()}, playing{false} {}
             struct Sample *sample;
             uint8_t noteNo;
-            float pitchBend = 0;
             float volume;
+            float pitchBend = 0;
             unsigned long createdAt = 0;
             bool released = false;
 

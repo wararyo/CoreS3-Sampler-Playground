@@ -105,7 +105,7 @@ void EffectReverb::Init()
     bandpass = setup_bandpass_filter(sampleRate, 2000.0f, 1.0f);
 }
 
-__attribute((noinline, optimize("-O3")))
+__attribute((noinline)) // optimize属性を付与するとIDF環境でなぜかコンパイルに失敗してしまう
 void comb_filter_process(const float *input, float *output, struct feedback_filter_t *comb, size_t len)
 {
     float *buffer_start = comb->buffer_start;
@@ -217,7 +217,7 @@ void comb_filter_process(const float *input, float *output, struct feedback_filt
     comb->cursor = cursor;
 }
 
-__attribute((noinline, optimize("-O3")))
+__attribute((noinline)) // optimize属性を付与するとIDF環境でなぜかコンパイルに失敗してしまう
 void allpass_filter_process(const float *input, float *output, struct feedback_filter_t *allpass, size_t len)
 {
     float *buffer_start = allpass->buffer_start;
