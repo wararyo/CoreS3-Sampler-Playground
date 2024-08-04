@@ -1,6 +1,15 @@
-# CoreS3 Sampler Playground
+# CapsuleSampler Music Example
 
-M5Stack CoreS3を使って音を生成して遊ぼう！
+M5Stack CoreS3を使って音楽を聴くことができます。  
+You can listen to music by writing this example to M5Stack CoreS3.
+
+## 操作方法
+
+上下にスワイプ: 曲選択  
+タッチ: 再生開始
+
+Swipe up or down: Select song  
+Touch: Play the selected song
 
 ## 処理にかかる時間を計測する
 
@@ -21,7 +30,3 @@ SerialToWav.pyが待機状態に入ったことを確認したら、M5Stack Core
 やがてCoreS3の画面上に `Processed.` と表示されるので、PC上で Ctrl+C を押してSerialToWav.pyを停止させます。
 
 output.wavが作成されているので、好みの音声エディタで開きます。
-
-## 構成図
-
-![構成図](Diagram.svg)
