@@ -84,13 +84,14 @@ A timber is an array of structures consisting of the following members.
 * Sample
 * Lower limit of note number (including this number itself)
 * Upper limit of note number (including this number itself)
-* lower limit of velocity (including this velocity itself)
+* Lower limit of velocity (including this velocity itself)
 * Upper limit of velocity (including this velocity itself)
 
-Imagine plotting a rectangle on a plane with note number on the horizontal axis and velocity on the vertical axis.
+Imagine plotting rectangles on a plane with note number on the horizontal axis and velocity on the vertical axis.
 
 The array must satisfy the following constraints.
 
 * When any two are taken out, their note number ranges must either match exactly or not overlap at all.
-* When any two with the same lowerNoteNo are taken out, their velocity ranges do not overlap
-* They are in order of decreasing lowerNoteNo and have the same lowerNoteNo
+* When any two with the same lowerNoteNo are taken out, their velocity ranges do not overlap.
+* Items are listed in descending order of lowerNoteNo.
+    * Items with the same lowerNoteNo are listed in descending order of lowerVelocity.
