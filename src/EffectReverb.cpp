@@ -1,9 +1,10 @@
 #include <EffectReverb.h>
 #include <cmath>
-#if defined(M5UNIFIED_PC_BUILD)
-#define M_PI 3.14159265359
-#else
+
+#if __has_include("bits/stdc++.h")
 #include <bits/stdc++.h>
+#else
+#define M_PI 3.14159265359
 #endif
 
 namespace capsule
@@ -73,11 +74,11 @@ void EffectReverb::Init()
                     7 * 8) &
                    ~0b11) *
                   sizeof(float);
-#if defined(M5UNIFIED_PC_BUILD)
-    memory = (float *)calloc(1, size);
-#else
+#if defined ( ESP_PLATFORM )
     // DRAMに16バイトアラインされた状態でメモリを確保する (SIMDを使用するには16バイトアラインされている必要がある)
     memory = (float *)heap_caps_aligned_calloc(16, 1, size, MALLOC_CAP_INTERNAL);
+#else
+    memory = (float *)calloc(1, size);
 #endif
 
     // 現状、timeは0.11〜1.0のみ対応
@@ -441,11 +442,11 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
     float buffer[bufferSize] __attribute__((aligned(16)));
     float multiplier = level * 0.25f; // 0.25fはコムフィルターの平均を取るため
 
-#if defined(M5UNIFIED_PC_BUILD)
+#if defined ( ESP_PLATFORM )
+    float processed[bufferSize] __attribute__((aligned(16))) = {0.0f}; // これが最終的にリバーブ成分になる
+#else
     float processed[bufferSize]; // これが最終的にリバーブ成分になる
     memset(processed, 0, sizeof(float) * bufferSize);
-#else
-    float processed[bufferSize] __attribute__((aligned(16))) = {0.0f}; // これが最終的にリバーブ成分になる
 #endif
 
     { // 入力の振幅を下げてbufferに格納

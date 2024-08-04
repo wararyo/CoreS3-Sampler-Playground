@@ -2,17 +2,13 @@
 
 #include <list>
 #include <deque>
-#include <stdio.h>
-#include <stdint.h>
+#include <cstdio>
+#include <cstdint>
 #include <vector>
-
-#if defined ( ARDUINO )
-#include <Arduino.h>
-#elif defined ( ESP_PLATFORM )
-// TODO ここ書く
-#endif
+#include <cmath>
 
 #include <EffectReverb.h>
+#include <Utils.h>
 
 // ADSR更新周期 (サンプル数)
 // ※ ADSRの更新周期が短いほど、ADSRの変化が滑らかになりますが、CPU負荷が増加します
@@ -90,12 +86,12 @@ namespace sampler
         {
         public:
             SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume, float pitchBend)
-                : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{micros()}
+                : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{sampler::micros()}
             {
                 UpdatePitch();
                 gain = volume;
             }
-            SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{micros()} {}
+            SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, playing{false}, createdAt{sampler::micros()} {}
             struct Sample *sample;
             uint8_t noteNo;
             float pitchBend = 0;

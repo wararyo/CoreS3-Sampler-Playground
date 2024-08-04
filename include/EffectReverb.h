@@ -1,16 +1,13 @@
 #pragma once
 
-#include <stdio.h>
+#include <cstdio>
 #include <EffectBase.h>
 
-#if defined(M5UNIFIED_PC_BUILD)
+#if defined ( ESP_PLATFORM )
+#include <esp_heap_caps.h>
+#else
 #include <cstdlib>
-#endif
-
-#if defined ( ARDUINO )
-#include <Arduino.h>
-#elif defined ( ESP_PLATFORM )
-// TODO ここ書く
+#include <cstring>
 #endif
 
 #define REVERB_DELAY_BASIS_COMB_0 3460
