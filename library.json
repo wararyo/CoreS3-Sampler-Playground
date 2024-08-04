@@ -5,7 +5,7 @@
   "keywords": "ESP32, Sampler, Synthesizer, MIDI",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wararyo/ESP32-Sampler.git"
+    "url": "https://github.com/wararyo/Capsule-Sampler.git"
   },
   "authors": [
     {
