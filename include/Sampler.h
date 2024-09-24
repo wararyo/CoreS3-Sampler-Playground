@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 #include <cmath>
+#include <freertos/FreeRTOS.h>
 
 #include <EffectReverb.h>
 #include <Utils.h>
@@ -172,6 +173,7 @@ namespace sampler
         // これにより、Processを別スレッドで動かすことができる
         // TODO: messageQueue自体の排他制御は必要ない？
         std::deque<Message> messageQueue;
+        portMUX_TYPE messageQueueMutex = portMUX_INITIALIZER_UNLOCKED;
 
         EffectReverb reverb = EffectReverb(0.4f, 0.5f, SAMPLE_BUFFER_SIZE, SAMPLE_RATE);
     };
