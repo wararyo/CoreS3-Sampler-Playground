@@ -10,6 +10,17 @@ ESP32で動作するサンプラーライブラリ
 
 ![Diagram](Diagram.svg)
 
+## インストール
+
+### PlatformIOの場合
+
+platformio.ini に下記を追記します。
+
+```ini
+lib_deps = 
+  https://github.com/wararyo/CoreS3-Sampler-Playground.git#library
+```
+
 ## 音色を作成する
 
 CapsuleSamplerを動作させるためには、音色を別途作成する必要があります。

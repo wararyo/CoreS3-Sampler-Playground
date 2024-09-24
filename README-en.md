@@ -10,6 +10,17 @@ You can use it as a MIDI sound source by providing your own sound data.
 
 ![Diagram](Diagram-en.svg)
 
+## Getting started
+
+### PlatformIO
+
+Append the following in platformio.ini
+
+```ini
+lib_deps = 
+  https://github.com/wararyo/CoreS3-Sampler-Playground.git#library
+```
+
 ## Creating tones
 
 In order to run CapsuleSampler, you must create your own tones.
