@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <vector>
 #include <cmath>
+#include <memory>
 #include <freertos/FreeRTOS.h>
 
 #include <EffectReverb.h>
@@ -37,7 +38,7 @@ namespace sampler
 
     struct Sample
     {
-        const int16_t *sample;
+        std::unique_ptr<const int16_t> sample;
         uint32_t length;
         uint8_t root;
         uint32_t loopStart;
@@ -48,6 +49,10 @@ namespace sampler
         float decay;
         float sustain;
         float release;
+    
+        Sample(const int16_t *sample, uint32_t length, uint8_t root, uint32_t loopStart, uint32_t loopEnd, bool adsrEnabled, float attack, float decay, float sustain, float release)
+            : sample{sample}, length{length}, root{root}, loopStart{loopStart}, loopEnd{loopEnd}, adsrEnabled{adsrEnabled}, attack{attack}, decay{decay}, sustain{sustain}, release{release} {}
+        Sample(Sample&& other) : sample{std::move(other.sample)}, length{other.length}, root{other.root}, loopStart{other.loopStart}, loopEnd{other.loopEnd}, adsrEnabled{other.adsrEnabled}, attack{other.attack}, decay{other.decay}, sustain{other.sustain}, release{other.release} {}
     };
 
     // MIDI規格のプログラムに対応する概念
@@ -59,16 +64,43 @@ namespace sampler
     public:
         struct MappedSample
         {
-            Sample *sample;
+            std::shared_ptr<const Sample> sample;
             uint8_t lowerNoteNo;   // このサンプルが選ばれるノートナンバーの下限(自身を含む)
             uint8_t upperNoteNo;   // このサンプルが選ばれるノートナンバーの上限(自身を含む)
             uint8_t lowerVelocity; // このサンプルが選ばれるベロシティの下限(自身を含む)
             uint8_t upperVelocity; // このサンプルが選ばれるベロシティの上限(自身を含む)
+
+            MappedSample(const Sample *sample, uint8_t lowerNoteNo, uint8_t upperNoteNo, uint8_t lowerVelocity, uint8_t upperVelocity)
+                : sample{sample}, lowerNoteNo{lowerNoteNo}, upperNoteNo{upperNoteNo}, lowerVelocity{lowerVelocity}, upperVelocity{upperVelocity} {}
+            MappedSample(MappedSample&& other) : sample{std::move(other.sample)}, lowerNoteNo{other.lowerNoteNo}, upperNoteNo{other.upperNoteNo}, lowerVelocity{other.lowerVelocity}, upperVelocity{other.upperVelocity} {}
+            MappedSample(const MappedSample& other) : sample{other.sample}, lowerNoteNo{other.lowerNoteNo}, upperNoteNo{other.upperNoteNo}, lowerVelocity{other.lowerVelocity}, upperVelocity{other.upperVelocity} {}
+            MappedSample& operator=(MappedSample&& other) noexcept
+            {
+                if (this != &other)
+                {
+                    sample = std::move(other.sample);
+                    lowerNoteNo = other.lowerNoteNo;
+                    upperNoteNo = other.upperNoteNo;
+                    lowerVelocity = other.lowerVelocity;
+                    upperVelocity = other.upperVelocity;
+                }
+                return *this;
+            }
         };
-        Timbre(std::vector<MappedSample> samples) : samples{samples} {}
+        // 通常はこちらのコンストラクタを使用してください
+        Timbre(std::vector<std::unique_ptr<MappedSample>> *samples) : samples{std::move(std::unique_ptr<std::vector<std::unique_ptr<MappedSample>>>(samples))} {}
+        // このコンストラクタを使用することで簡潔な初期化が可能です
+        // samplesや内部のサンプルが解放されないことが保証されている場合にのみ使用してください
+        Timbre(std::vector<MappedSample> mss) : samples{std::make_unique<std::vector<std::unique_ptr<MappedSample>>>()}
+        {
+            for (auto &ms : mss)
+            {
+                samples->push_back(std::make_unique<MappedSample>(std::move(ms)));
+            }
+        }
         // 指定したノートナンバーとベロシティが範囲に含まれているサンプルを返す
         // 該当するサンプルがない場合はnullptrを返す
-        Sample *GetAppropriateSample(uint8_t noteNo, uint8_t velocity);
+        std::shared_ptr<const Sample> GetAppropriateSample(uint8_t noteNo, uint8_t velocity);
 
     private:
         // サンプルの集合
@@ -76,7 +108,7 @@ namespace sampler
         // * 任意の2つを取り出したとき、それらのノートナンバーの範囲が完全に一致しているか、全く重複していないかのどちらかである
         // * 同じlowerNoteNoを持つ任意の2つを取り出したとき、それらのベロシティの範囲が重複していない
         // * lowerNoteNoの低い順に並んでおり、同じlowerNoteNoを持つ項目はlowerVelocityの低い順に並んでいる
-        std::vector<MappedSample> samples;
+        std::unique_ptr<std::vector<std::unique_ptr<MappedSample>>> samples;
     };
 
     class Sampler
@@ -86,14 +118,14 @@ namespace sampler
         class SamplePlayer
         {
         public:
-            SamplePlayer(struct Sample *sample, uint8_t noteNo, float volume, float pitchBend)
+            SamplePlayer(std::shared_ptr<const Sample> sample, uint8_t noteNo, float volume, float pitchBend)
                 : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{sampler::micros()}
             {
                 UpdatePitch();
                 gain = volume;
             }
             SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, createdAt{sampler::micros()}, playing{false} {}
-            struct Sample *sample;
+            std::shared_ptr<const Sample> sample;
             uint8_t noteNo;
             float volume;
             float pitchBend = 0;
@@ -121,7 +153,7 @@ namespace sampler
             void NoteOn(uint8_t noteNo, uint8_t velocity);
             void NoteOff(uint8_t noteNo, uint8_t velocity);
             void PitchBend(int16_t pitchBend);
-            void SetTimbre(Timbre *timbre);
+            void SetTimbre(std::shared_ptr<Timbre> t);
 
         private:
             Sampler *sampler; // 親サンプラー
@@ -130,7 +162,7 @@ namespace sampler
                 uint8_t noteNo;
                 uint_fast8_t playerId;
             };
-            Timbre *timbre;
+            std::shared_ptr<Timbre> timbre;
             float pitchBend = 0.0f;
             std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
         };
@@ -143,7 +175,7 @@ namespace sampler
         void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
         void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel);
         void PitchBend(int16_t pitchBend, uint8_t channel);
-        void SetTimbre(uint8_t channel, Timbre *timbre);
+        void SetTimbre(uint8_t channel, std::shared_ptr<Timbre> t);
 
         void Process(int16_t *output);
 

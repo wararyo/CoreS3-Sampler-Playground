@@ -8,21 +8,21 @@ namespace capsule
 namespace sampler
 {
 
-Sample *Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
+shared_ptr<const Sample> Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
 {
-    for (MappedSample ms : samples)
+    for (const auto& ms : *samples)
     {
-        if (ms.lowerNoteNo <= noteNo && noteNo <= ms.upperNoteNo && ms.lowerVelocity <= velocity && velocity <= ms.upperVelocity)
-            return ms.sample;
+        if (ms->lowerNoteNo <= noteNo && noteNo <= ms->upperNoteNo && ms->lowerVelocity <= velocity && velocity <= ms->upperVelocity)
+            return ms->sample;
     }
     return nullptr;
 }
 
-void Sampler::SetTimbre(uint8_t channel, Timbre *t)
+void Sampler::SetTimbre(uint8_t channel, shared_ptr<Timbre> t)
 {
     if(channel < CH_COUNT) channels[channel].SetTimbre(t);
 }
-void Sampler::Channel::SetTimbre(Timbre *t)
+void Sampler::Channel::SetTimbre(shared_ptr<Timbre> t)
 {
     timbre = t;
 }
@@ -175,7 +175,7 @@ extern "C"
 }
 
 // なぜか関数が名前空間に入っている場合はweak属性が効かないので、ここでアーキテクチャを判定する
-#if !defined ( __XTENSA__ )
+#if 1
 
 // アセンブリ言語版と同様の処理を行うC/C++版の実装
 // weak属性を付けることで、アセンブリ言語版があればそちらを使う
@@ -247,7 +247,7 @@ void Sampler::Process(int16_t* __restrict__ output)
 
         for (uint_fast8_t j = 0; j < SAMPLE_BUFFER_SIZE / ADSR_UPDATE_SAMPLE_COUNT; j++)
         {
-            Sample *sample = player->sample;
+            const Sample *sample = player->sample.get();
             if (sample->adsrEnabled)
                 player->UpdateGain();
             if (player->playing == false)
@@ -260,7 +260,7 @@ void Sampler::Process(int16_t* __restrict__ output)
             // 後処理で float から int16_t への変換時処理を行う際の高速化の都合で、事前に 65536倍しておく
             gain *= masterVolume * 65536;
 
-            auto src = sample->sample;
+            auto src = sample->sample.get();
             sampler_process_inner_work_t work = {&src[player->pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], player->pos_f, gain, pitch};
             // 波形生成処理を行う
             sampler_process_inner(&work, ADSR_UPDATE_SAMPLE_COUNT);

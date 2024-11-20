@@ -6,6 +6,7 @@
 #define ENABLE_PRINTING false
 
 using namespace capsule::sampler;
+typedef std::vector<Timbre::MappedSample> ms;
 
 extern const MidiMessage simple_song[];
 extern const MidiMessage stresstest_song[];
@@ -60,17 +61,17 @@ static struct Sample epianoSample = Sample{
     120048, 120415,
     true, 1.0f, 0.98f, 0.5f, 0.95f};
 
-static Timbre piano = Timbre({{&pianoSample, 0, 127, 0, 127}});
-static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
-static Timbre drumset = Timbre({
+auto piano = std::make_shared<Timbre>(ms{{&pianoSample, 0, 127, 0, 127}});
+auto bass = std::make_shared<Timbre>(ms{{&bassSample, 0, 127, 0, 127}});
+auto drumset = std::make_shared<Timbre>(ms{
   {&kickSample, 36, 36, 0, 127},
   {&rimknockSample, 37, 37, 0, 127},
   {&snareSample, 38, 38, 0, 127},
   {&hihatSample, 42, 42, 0, 127},
   {&crashSample, 49, 49, 0, 127}
 });
-static Timbre supersaw = Timbre({{&supersawSample, 0, 127, 0, 127}});
-static Timbre epiano = Timbre({{&epianoSample, 0, 127, 0, 127}});
+auto supersaw = std::make_shared<Timbre>(ms{{&supersawSample, 0, 127, 0, 127}});
+auto epiano = std::make_shared<Timbre>(ms{{&epianoSample, 0, 127, 0, 127}});
 
 struct song_table_entry_t
 {
@@ -164,11 +165,11 @@ uint32_t benchmark(Sampler *sampler, const MidiMessage *song)
 
   uint32_t cycle_count = 0;
 
-  sampler->SetTimbre(0, &piano);
-  sampler->SetTimbre(1, &bass);
-  sampler->SetTimbre(2, &supersaw);
-  sampler->SetTimbre(3, &epiano);
-  sampler->SetTimbre(9, &drumset);
+  sampler->SetTimbre(0, piano);
+  sampler->SetTimbre(1, bass);
+  sampler->SetTimbre(2, supersaw);
+  sampler->SetTimbre(3, epiano);
+  sampler->SetTimbre(9, drumset);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
