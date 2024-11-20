@@ -285,7 +285,7 @@ void loop()
     M5.Display.println("Processing...");
 
     time_t elapsedTime = 0;
-    Sampler sampler = Sampler();
+    Sampler sampler;
     elapsedTime = benchmark(&sampler, song_table[song_index].song);
 
     

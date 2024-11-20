@@ -7,10 +7,13 @@
 #include <vector>
 #include <cmath>
 #include <memory>
+#if defined(FREERTOS)
 #include <freertos/FreeRTOS.h>
+#else
+#include <mutex>
+#endif
 
-#include <EffectReverb.h>
-#include <Utils.h>
+#include "EffectReverb.h"
 
 // ADSR更新周期 (サンプル数)
 // ※ ADSRの更新周期が短いほど、ADSRの変化が滑らかになりますが、CPU負荷が増加します
@@ -28,6 +31,8 @@ namespace capsule
 {
 namespace sampler
 {
+    unsigned long micros();
+
     enum SampleAdsr
     {
         attack,
@@ -172,6 +177,7 @@ namespace sampler
             for (uint_fast8_t i = 0; i < CH_COUNT; i++)
                 channels[i] = Channel(this);
         }
+
         void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
         void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel);
         void PitchBend(int16_t pitchBend, uint8_t channel);
@@ -205,7 +211,11 @@ namespace sampler
         // これにより、Processを別スレッドで動かすことができる
         // TODO: messageQueue自体の排他制御は必要ない？
         std::deque<Message> messageQueue;
+#if defined(FREERTOS)
         portMUX_TYPE messageQueueMutex = portMUX_INITIALIZER_UNLOCKED;
+#else
+        std::mutex messageQueueMutex;
+#endif
 
         EffectReverb reverb = EffectReverb(0.4f, 0.5f, SAMPLE_BUFFER_SIZE, SAMPLE_RATE);
     };

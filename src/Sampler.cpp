@@ -1,7 +1,19 @@
-#include <Sampler.h>
+#include "Sampler.h"
+
 #include <algorithm>
 #include <Tables.h>
-#include <esp_log.h>
+#include "Utils.h"
+
+#if defined(FREERTOS)
+#define ENTER_CRITICAL(mutex) portENTER_CRITICAL(&mutex)
+#define EXIT_CRITICAL(mutex) portEXIT_CRITICAL(&mutex)
+#else
+#define ENTER_CRITICAL(mutex) mutex.lock()
+#define EXIT_CRITICAL(mutex) mutex.unlock()
+#endif
+
+using std::unique_ptr;
+using std::shared_ptr;
 
 namespace capsule
 {
@@ -31,31 +43,31 @@ void Sampler::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
-    portENTER_CRITICAL(&messageQueueMutex);
+    ENTER_CRITICAL(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::NOTE_ON, channel, noteNo, velocity, 0});
-    portEXIT_CRITICAL(&messageQueueMutex);
+    EXIT_CRITICAL(messageQueueMutex);
 }
 void Sampler::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
-    portENTER_CRITICAL(&messageQueueMutex);
+    ENTER_CRITICAL(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::NOTE_OFF, channel, noteNo, velocity, 0});
-    portEXIT_CRITICAL(&messageQueueMutex);
+    EXIT_CRITICAL(messageQueueMutex);
 }
 void Sampler::PitchBend(int16_t pitchBend, uint8_t channel)
 {
     if (channel >= CH_COUNT) return; // 無効なチャンネルの場合は何もしない
     if (pitchBend < -8192) pitchBend = -8192;
     else if (pitchBend > 8191) pitchBend = 8191;
-    portENTER_CRITICAL(&messageQueueMutex);
+    ENTER_CRITICAL(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::PITCH_BEND, channel, 0, 0, pitchBend});
-    portEXIT_CRITICAL(&messageQueueMutex);
+    EXIT_CRITICAL(messageQueueMutex);
 }
 
 void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
 {
-    ESP_LOGI("Sampler", "NoteOn : %2x, %2x\n", noteNo, velocity);
+    LOGI("Sampler", "NoteOn : %2x, %2x\n", noteNo, velocity);
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
@@ -78,7 +90,7 @@ void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
 }
 void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
 {
-    ESP_LOGI("Sampler", "NoteOff: %2x, %2x\n", noteNo, velocity);
+    LOGI("Sampler", "NoteOff: %2x, %2x\n", noteNo, velocity);
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
     for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
     {
