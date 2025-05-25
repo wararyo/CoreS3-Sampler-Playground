@@ -92,7 +92,7 @@ void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
 {
     LOGI("Sampler", "NoteOff: %2x, %2x\n", noteNo, velocity);
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
-    for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
+    for (auto itr = playingNotes.begin(); itr != playingNotes.end();)
     {
         if (itr->noteNo == noteNo)
         {
@@ -102,8 +102,9 @@ void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
             //       とりあえずnoteNoが合ってれば高確率で該当の発音でしょうという判断をしています
             if (player->noteNo == noteNo)
                 player->released = true;
-            playingNotes.erase(itr);
+            itr = playingNotes.erase(itr);
         }
+        else itr++;
     }
 }
 void Sampler::Channel::PitchBend(int16_t b)
