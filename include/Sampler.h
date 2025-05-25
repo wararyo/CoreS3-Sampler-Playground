@@ -176,6 +176,9 @@ namespace sampler
         {
             for (uint_fast8_t i = 0; i < CH_COUNT; i++)
                 channels[i] = Channel(this);
+#if defined(FREERTOS)
+            InitializeMutexes();
+#endif
         }
 
         void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
@@ -213,11 +216,16 @@ namespace sampler
         std::deque<Message> messageQueue;
 #if defined(FREERTOS)
         portMUX_TYPE messageQueueMutex = portMUX_INITIALIZER_UNLOCKED;
+        SemaphoreHandle_t playersMutex = NULL;
 #else
         std::mutex messageQueueMutex;
+        std::mutex playersMutex;
 #endif
 
         EffectReverb reverb = EffectReverb(0.4f, 0.5f, SAMPLE_BUFFER_SIZE, SAMPLE_RATE);
+        
+        // コンストラクタでFreeRTOSセマフォを初期化するためのメソッド
+        void InitializeMutexes();
     };
     
 }

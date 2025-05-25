@@ -5,11 +5,17 @@
 #include "Utils.h"
 
 #if defined(FREERTOS)
-#define ENTER_CRITICAL(mutex) portENTER_CRITICAL(&mutex)
-#define EXIT_CRITICAL(mutex) portEXIT_CRITICAL(&mutex)
+// 長い処理ではセマフォを使用し、短い処理ではスピンロックを使用する
+#define ENTER_CRITICAL_SPINLOCK(mutex) portENTER_CRITICAL(&mutex)
+#define EXIT_CRITICAL_SPINLOCK(mutex) portEXIT_CRITICAL(&mutex)
+#define ENTER_CRITICAL_SEMAPHORE(mutex) xSemaphoreTake(mutex, portMAX_DELAY)
+#define EXIT_CRITICAL_SEMAPHORE(mutex) xSemaphoreGive(mutex)
 #else
-#define ENTER_CRITICAL(mutex) mutex.lock()
-#define EXIT_CRITICAL(mutex) mutex.unlock()
+// 非FreeRTOS環境ではすべて同じ実装
+#define ENTER_CRITICAL_SPINLOCK(mutex) mutex.lock()
+#define EXIT_CRITICAL_SPINLOCK(mutex) mutex.unlock()
+#define ENTER_CRITICAL_SEMAPHORE(mutex) mutex.lock()
+#define EXIT_CRITICAL_SEMAPHORE(mutex) mutex.unlock()
 #endif
 
 using std::unique_ptr;
@@ -19,6 +25,17 @@ namespace capsule
 {
 namespace sampler
 {
+
+void Sampler::InitializeMutexes() {
+#if defined(FREERTOS)
+    // 長時間の処理用のセマフォを初期化
+    playersMutex = xSemaphoreCreateMutex();
+    if (playersMutex == NULL) {
+        // エラー処理（必要に応じて）
+        LOGI("Sampler", "Failed to create playersMutex\n");
+    }
+#endif
+}
 
 shared_ptr<const Sample> Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
 {
@@ -43,26 +60,26 @@ void Sampler::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
-    ENTER_CRITICAL(messageQueueMutex);
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::NOTE_ON, channel, noteNo, velocity, 0});
-    EXIT_CRITICAL(messageQueueMutex);
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 }
 void Sampler::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
-    ENTER_CRITICAL(messageQueueMutex);
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::NOTE_OFF, channel, noteNo, velocity, 0});
-    EXIT_CRITICAL(messageQueueMutex);
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 }
 void Sampler::PitchBend(int16_t pitchBend, uint8_t channel)
 {
     if (channel >= CH_COUNT) return; // 無効なチャンネルの場合は何もしない
     if (pitchBend < -8192) pitchBend = -8192;
     else if (pitchBend > 8191) pitchBend = 8191;
-    ENTER_CRITICAL(messageQueueMutex);
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::PITCH_BEND, channel, 0, 0, pitchBend});
-    EXIT_CRITICAL(messageQueueMutex);
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 }
 
 void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
@@ -70,12 +87,15 @@ void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     LOGI("Sampler", "NoteOn : %2x, %2x\n", noteNo, velocity);
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
+    
+    ENTER_CRITICAL_SEMAPHORE(sampler->playersMutex);
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
         if (sampler->players[i].playing == false)
         {
             sampler->players[i] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
             playingNotes.push_back(PlayingNote{noteNo, i});
+            EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
             return;
         }
         else
@@ -87,10 +107,13 @@ void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
     sampler->players[oldestPlayerId] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
+    EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
 }
 void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
 {
     LOGI("Sampler", "NoteOff: %2x, %2x\n", noteNo, velocity);
+    
+    ENTER_CRITICAL_SEMAPHORE(sampler->playersMutex);
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
     for (auto itr = playingNotes.begin(); itr != playingNotes.end();)
     {
@@ -106,10 +129,13 @@ void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
         }
         else itr++;
     }
+    EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
 }
 void Sampler::Channel::PitchBend(int16_t b)
 {
     pitchBend = b * 12.0f / 8192.0f;
+    
+    ENTER_CRITICAL_SEMAPHORE(sampler->playersMutex);
     // 既に発音中のノートに対してピッチベンドを適用する
     for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
     {
@@ -118,6 +144,7 @@ void Sampler::Channel::PitchBend(int16_t b)
         player->pitchBend = pitchBend;
         player->UpdatePitch();
     }
+    EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
 }
 
 void Sampler::SamplePlayer::UpdatePitch()
@@ -232,9 +259,14 @@ __attribute((optimize("-O3")))
 void Sampler::Process(int16_t* __restrict__ output)
 {
     // キューを処理する
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     while (!messageQueue.empty())
     {
         Message message = messageQueue.front();
+        messageQueue.pop_front();
+        EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
+        
+        // ミューテックスの外でメッセージを処理
         switch (message.status)
         {
         case MessageStatus::NOTE_ON:
@@ -247,11 +279,15 @@ void Sampler::Process(int16_t* __restrict__ output)
             channels[message.channel].PitchBend(message.pitchBend);
             break;
         }
-        messageQueue.pop_front();
+        
+        ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     }
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 
     // 波形を生成
     float data[SAMPLE_BUFFER_SIZE] __attribute__ ((aligned (16))) = {0.0f};
+    
+    ENTER_CRITICAL_SEMAPHORE(playersMutex);
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
         SamplePlayer *player = &players[i];
@@ -308,6 +344,7 @@ void Sampler::Process(int16_t* __restrict__ output)
             player->pos_f = work.pos_f;
         }
     }
+    EXIT_CRITICAL_SEMAPHORE(playersMutex);
 
     { // マスターエフェクト処理
         reverb.Process(data, data);
