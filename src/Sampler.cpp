@@ -93,7 +93,9 @@ void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     {
         if (sampler->players[i].playing == false)
         {
-            sampler->players[i] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
+            // チャンネル情報を追加
+            uint8_t channelIndex = std::distance(&sampler->channels[0], this);
+            sampler->players[i] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
             playingNotes.push_back(PlayingNote{noteNo, i});
             EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
             return;
@@ -105,7 +107,8 @@ void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    sampler->players[oldestPlayerId] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
+    uint8_t channelIndex = std::distance(&sampler->channels[0], this);
+    sampler->players[oldestPlayerId] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
     EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
 }
@@ -120,10 +123,10 @@ void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
         if (itr->noteNo == noteNo)
         {
             SamplePlayer *player = &(sampler->players[itr->playerId]);
-            // 発音後に同時発音数制限によって発音が止められていなければ、発音を終わらせる
-            // TODO: 本当はユニークID的なものを設けるべきだが、
-            //       とりあえずnoteNoが合ってれば高確率で該当の発音でしょうという判断をしています
-            if (player->noteNo == noteNo)
+            // ノート番号とチャンネル両方が一致する場合、発音を終わらせる\
+            // 発音後に同時発音数制限によって発音が止められている場合は何もしないことになる
+            uint8_t channelIndex = std::distance(&sampler->channels[0], this);
+            if (player->noteNo == noteNo && player->channel == channelIndex)
                 player->released = true;
             itr = playingNotes.erase(itr);
         }
@@ -139,10 +142,13 @@ void Sampler::Channel::PitchBend(int16_t b)
     // 既に発音中のノートに対してピッチベンドを適用する
     for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
     {
-        // TODO: 同時発音数制限によって発音が止められて別の音が流れている場合は動作がおかしくなるので修正すべき
         SamplePlayer *player = &(sampler->players[itr->playerId]);
-        player->pitchBend = pitchBend;
-        player->UpdatePitch();
+        // 同じチャンネルのノートにのみ適用する
+        uint8_t channelIndex = std::distance(&sampler->channels[0], this);
+        if (player->channel == channelIndex) {
+            player->pitchBend = pitchBend;
+            player->UpdatePitch();
+        }
     }
     EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
 }

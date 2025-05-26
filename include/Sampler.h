@@ -123,17 +123,18 @@ namespace sampler
         class SamplePlayer
         {
         public:
-            SamplePlayer(std::shared_ptr<const Sample> sample, uint8_t noteNo, float volume, float pitchBend)
-                : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, createdAt{sampler::micros()}
+            SamplePlayer(std::shared_ptr<const Sample> sample, uint8_t noteNo, float volume, float pitchBend, uint8_t channel)
+                : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, channel{channel}, createdAt{sampler::micros()}
             {
                 UpdatePitch();
                 gain = volume;
             }
-            SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, createdAt{sampler::micros()}, playing{false} {}
+            SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, channel{0}, createdAt{sampler::micros()}, playing{false} {}
             std::shared_ptr<const Sample> sample;
             uint8_t noteNo;
             float volume;
             float pitchBend = 0;
+            uint8_t channel = 0;   // 音を鳴らしたチャンネル
             unsigned long createdAt = 0;
             bool released = false;
 
