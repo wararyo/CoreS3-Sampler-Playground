@@ -1,7 +1,8 @@
 #include "Sampler.h"
 
 #include <algorithm>
-#include <Tables.h>
+#include <cstring>
+#include "Tables.h"
 #include "Utils.h"
 
 #if defined(FREERTOS)
@@ -310,9 +311,17 @@ void Sampler::Process(int16_t* __restrict__ output)
     }
     EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 
-    // 波形を生成
-    float data[SAMPLE_BUFFER_SIZE] __attribute__ ((aligned (16))) = {0.0f};
-    
+    bool channelHasEffect[CH_COUNT] = {false};
+    for (uint_fast8_t ch = 0; ch < CH_COUNT; ch++) {
+        // エフェクトがあるチャンネルを事前にチェック（プロセス中に頻繁に呼び出すため最適化）
+        bool hasEffect = (channels[ch].GetEffect() != nullptr);
+        channelHasEffect[ch] = hasEffect;
+        // チャンネルバッファをクリア
+        if (hasEffect) memset(channelBuffers[ch], 0, SAMPLE_BUFFER_SIZE * sizeof(float));
+    }
+    // ミックスバッファをクリア
+    memset(mixedBuffer, 0, SAMPLE_BUFFER_SIZE * sizeof(float));
+
     ENTER_CRITICAL_SEMAPHORE(playersMutex);
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
@@ -320,6 +329,10 @@ void Sampler::Process(int16_t* __restrict__ output)
         if (player->playing == false)
             continue;
 
+        // プレイヤーが所属するチャンネル
+        uint8_t channelIndex = player->channel;
+        bool hasEffect = channelHasEffect[channelIndex];
+        
         for (uint_fast8_t j = 0; j < SAMPLE_BUFFER_SIZE / ADSR_UPDATE_SAMPLE_COUNT; j++)
         {
             if (!player->sample.has_value()) break;
@@ -332,12 +345,25 @@ void Sampler::Process(int16_t* __restrict__ output)
             float pitch = player->pitch;
             float gain = player->gain;
 
-            // gainにマスターボリュームを適用しておく
+            // チャンネルのボリュームを適用
+            gain *= channels[channelIndex].volume;
+            
             // 後処理で float から int16_t への変換時処理を行う際の高速化の都合で、事前に 65536倍しておく
-            gain *= masterVolume * 65536;
+            gain *= 65536;
 
             auto src = sample.sample.get();
-            sampler_process_inner_work_t work = {&src[player->pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], player->pos_f, gain, pitch};
+            // エフェクトの有無に応じて出力先バッファを切り替え
+            float* outputBuffer = hasEffect ? 
+                &channelBuffers[channelIndex][j * ADSR_UPDATE_SAMPLE_COUNT] : 
+                &mixedBuffer[j * ADSR_UPDATE_SAMPLE_COUNT];
+            
+            sampler_process_inner_work_t work = {
+                &src[player->pos],
+                outputBuffer,
+                player->pos_f, 
+                gain, 
+                pitch
+            };
             // 波形生成処理を行う
             sampler_process_inner(&work, ADSR_UPDATE_SAMPLE_COUNT);
 
@@ -373,8 +399,28 @@ void Sampler::Process(int16_t* __restrict__ output)
     }
     EXIT_CRITICAL_SEMAPHORE(playersMutex);
 
-    { // マスターエフェクト処理
-        reverb.Process(data, data);
+    // エフェクトがあるチャンネルのみ処理してミキシング
+    for (uint_fast8_t ch = 0; ch < CH_COUNT; ch++) {
+        // エフェクトがない場合はスキップ（既にmixedBufferに直接書き込み済み）
+        if (!channelHasEffect[ch]) {
+            continue;
+        }
+        
+        // チャンネル固有のエフェクトを適用
+        channels[ch].GetEffect()->Process(channelBuffers[ch], channelBuffers[ch]);
+        
+        // エフェクト適用後にマスターミックスバッファにミックス
+        for (uint_fast16_t i = 0; i < SAMPLE_BUFFER_SIZE; i++) {
+            mixedBuffer[i] += channelBuffers[ch][i];
+        }
+    }
+
+    // マスターエフェクト処理
+    reverb.Process(mixedBuffer, mixedBuffer);
+    
+    // マスターボリュームを適用
+    for (uint_fast16_t i = 0; i < SAMPLE_BUFFER_SIZE; i++) {
+        mixedBuffer[i] *= masterVolume;
     }
 
     { // 生成した波形をint16_tに変換して出力先に書き込む
@@ -409,7 +455,7 @@ void Sampler::Process(int16_t* __restrict__ output)
         : // output-list 使用せず    // アセンブリ言語からC/C++への受渡しは無し
         : // input-list             // C/C++からアセンブリ言語への受渡し
             "r" ( output ),         //  %0 に変数 output の値を指定
-            "r" ( data ),           //  %1 に変数 data の値を指定
+            "r" ( mixedBuffer ),    //  %1 に変数 mixedBuffer の値を指定
             "r" ( SAMPLE_BUFFER_SIZE>>3 )  // %2 にバッファ長 / 8 の値を設定
         : // clobber-list           //  値を書き換えたレジスタの申告
             "f8","f9","f10","f11","f12","f13","f14","f15",
@@ -417,7 +463,7 @@ void Sampler::Process(int16_t* __restrict__ output)
         );
 #else
         auto o = output;
-        auto d = data;
+        auto d = mixedBuffer;
         for (int i = 0; i < SAMPLE_BUFFER_SIZE >> 2; i++)
         { // 1ループあたりの処理回数を増やすことで処理効率を上げる
           // float から int32_t への変換。この処理は内部でtrunc.sが使用され、int32_tの範囲に収まるように桁溢れが防止される。

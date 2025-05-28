@@ -167,6 +167,11 @@ namespace sampler
             void NoteOff(uint8_t noteNo, uint8_t velocity);
             void PitchBend(int16_t pitchBend);
             void SetTimbre(std::shared_ptr<Timbre> t);
+            
+            // エフェクト関連の機能を追加
+            void SetEffect(std::shared_ptr<EffectBase> effect) { channelEffect = effect; }
+            std::shared_ptr<EffectBase> GetEffect() const { return channelEffect; }
+            float volume = 1.0f;  // チャンネルの音量
 
         private:
             std::weak_ptr<Sampler> sampler; // 循環参照を避けるために弱参照を使用
@@ -178,6 +183,7 @@ namespace sampler
             std::shared_ptr<Timbre> timbre;
             float pitchBend = 0.0f;
             std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
+            std::shared_ptr<EffectBase> channelEffect; // チャンネルごとのエフェクト
         };
         
         // shared_ptrを生成するファクトリー関数
@@ -241,6 +247,11 @@ namespace sampler
         std::mutex messageQueueMutex;
         std::mutex playersMutex;
 #endif
+
+        // チャンネルごとのミキシングバッファ
+        float channelBuffers[CH_COUNT][SAMPLE_BUFFER_SIZE] __attribute__ ((aligned (16)));
+        // 最終的なミックス結果を格納するバッファ
+        float mixedBuffer[SAMPLE_BUFFER_SIZE] __attribute__ ((aligned (16)));
 
         EffectReverb reverb = EffectReverb(0.4f, 0.5f, SAMPLE_BUFFER_SIZE, SAMPLE_RATE);
         
