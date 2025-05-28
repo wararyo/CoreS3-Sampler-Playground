@@ -1,11 +1,13 @@
 #pragma once
 
-#include <stdio.h>
+#include <cstdio>
 #include <EffectBase.h>
-#include <M5Unified.h>
 
-#if defined(M5UNIFIED_PC_BUILD)
+#if defined ( ESP_PLATFORM )
+#include <esp_heap_caps.h>
+#else
 #include <cstdlib>
+#include <cstring>
 #endif
 
 #define REVERB_DELAY_BASIS_COMB_0 3460
@@ -15,6 +17,11 @@
 #define REVERB_DELAY_BASIS_ALL_0 480
 #define REVERB_DELAY_BASIS_ALL_1 161
 #define REVERB_DELAY_BASIS_ALL_2 46
+
+namespace capsule
+{
+namespace sampler
+{
 
 // シュレーダーのリバーブ
 class EffectReverb : public EffectBase
@@ -38,3 +45,6 @@ public:
 private:
     float *memory;
 };
+
+}
+}

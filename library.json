@@ -1,0 +1,22 @@
+{
+  "name": "CapsuleSampler",
+  "version": "1.0.0",
+  "description": "A sampler library for ESP32",
+  "keywords": "ESP32, Sampler, Synthesizer, MIDI",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wararyo/Capsule-Sampler.git"
+  },
+  "authors": [
+    {
+      "name": "wararyo",
+      "email": "contact@wararyo.com",
+      "url": "https://wararyo.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "frameworks": ["arduino", "espidf", "*"],
+  "platforms": ["espressif32", "native"]
+}

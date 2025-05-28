@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "cstdlib": "cpp",
+        "__locale": "cpp",
+        "ios": "cpp",
+        "array": "cpp",
+        "span": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "vector": "cpp",
+        "ranges": "cpp"
+    }
+}

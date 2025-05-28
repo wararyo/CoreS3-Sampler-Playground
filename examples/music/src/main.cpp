@@ -1,11 +1,12 @@
 #include <M5Unified.h>
-#include <SamplerBase.h>
-#include <SamplerOptimized.h>
-#include <SamplerLegacy.h>
+#include <Sampler.h>
 #include <MidiMessage.h>
 #include <vector>
 
 #define ENABLE_PRINTING false
+
+using namespace capsule::sampler;
+typedef std::vector<Timbre::MappedSample> ms;
 
 extern const MidiMessage simple_song[];
 extern const MidiMessage stresstest_song[];
@@ -23,54 +24,54 @@ extern const int16_t crash_data[38879];
 extern const int16_t supersaw_data[30000];
 extern const int16_t epiano_data[124800];
 
-static struct Sample pianoSample = Sample{
-    piano_data, 24000, 60,
-    21608, 21975,
-    true, 1.0f, 0.998000f, 0.1f, 0.985000f};
-static struct Sample bassSample = Sample{
-    bass_data, 24000, 36,
-    21714, 22448,
-    true, 1.0f, 0.999000f, 0.25f, 0.970000f};
-static struct Sample kickSample = Sample{
-    kick_data, 12000, 36,
-    0, 0,
-    false, 0, 0, 0, 0};
-static struct Sample rimknockSample = Sample{
-    rimknock_data, 9800, 37,
-    0, 0,
-    false, 0, 0, 0, 0};
-static struct Sample snareSample = Sample{
-    snare_data, 12000, 38,
-    0, 0,
-    false, 0, 0, 0, 0};
-static struct Sample hihatSample = Sample{
-    hihat_data, 3200, 42,
-    0, 0,
-    false, 0, 0, 0, 0};
-static struct Sample crashSample = Sample{
-    crash_data, 38800, 49,
-    0, 0,
-    false, 0, 0, 0, 0};
-static struct Sample supersawSample = Sample{
-    supersaw_data, 30000, 60,
-    23979, 25263,
-    true, 1.0f, 0.982f, 0, 0.5f};
-static struct Sample epianoSample = Sample{
-    epiano_data, 124800, 60,
-    120048, 120415,
-    true, 1.0f, 0.98f, 0.5f, 0.95f};
+auto pianoSample = std::make_shared<Sample>(
+  piano_data, 24000, 60,
+  21608, 21975,
+  true, 1.0f, 0.998000f, 0.1f, 0.985000f);
+auto bassSample = std::make_shared<Sample>(
+  bass_data, 24000, 36,
+  21714, 22448,
+  true, 1.0f, 0.999000f, 0.25f, 0.970000f);
+auto kickSample = std::make_shared<Sample>(
+  kick_data, 12000, 36,
+  0, 0,
+  false, 0, 0, 0, 0);
+auto rimknockSample = std::make_shared<Sample>(
+  rimknock_data, 9800, 37,
+  0, 0,
+  false, 0, 0, 0, 0);
+auto snareSample = std::make_shared<Sample>(
+  snare_data, 12000, 38,
+  0, 0,
+  false, 0, 0, 0, 0);
+auto hihatSample = std::make_shared<Sample>(
+  hihat_data, 3200, 42,
+  0, 0,
+  false, 0, 0, 0, 0);
+auto crashSample = std::make_shared<Sample>(
+  crash_data, 38800, 49,
+  0, 0,
+  false, 0, 0, 0, 0);
+auto supersawSample = std::make_shared<Sample>(
+  supersaw_data, 30000, 60,
+  23979, 25263,
+  true, 1.0f, 0.982f, 0, 0.5f);
+auto epianoSample = std::make_shared<Sample>(
+  epiano_data, 124800, 60,
+  120048, 120415,
+  true, 1.0f, 0.98f, 0.5f, 0.95f);
 
-static Timbre piano = Timbre({{&pianoSample, 0, 127, 0, 127}});
-static Timbre bass = Timbre({{&bassSample, 0, 127, 0, 127}});
-static Timbre drumset = Timbre({
-  {&kickSample, 36, 36, 0, 127},
-  {&rimknockSample, 37, 37, 0, 127},
-  {&snareSample, 38, 38, 0, 127},
-  {&hihatSample, 42, 42, 0, 127},
-  {&crashSample, 49, 49, 0, 127}
+auto piano = std::make_shared<Timbre>(ms{{pianoSample, 0, 127, 0, 127}});
+auto bass = std::make_shared<Timbre>(ms{{bassSample, 0, 127, 0, 127}});
+auto drumset = std::make_shared<Timbre>(ms{
+  {kickSample, 36, 36, 0, 127},
+  {rimknockSample, 37, 37, 0, 127},
+  {snareSample, 38, 38, 0, 127},
+  {hihatSample, 42, 42, 0, 127},
+  {crashSample, 49, 49, 0, 127}
 });
-static Timbre supersaw = Timbre({{&supersawSample, 0, 127, 0, 127}});
-static Timbre epiano = Timbre({{&epianoSample, 0, 127, 0, 127}});
+auto supersaw = std::make_shared<Timbre>(ms{{supersawSample, 0, 127, 0, 127}});
+auto epiano = std::make_shared<Timbre>(ms{{epianoSample, 0, 127, 0, 127}});
 
 struct song_table_entry_t
 {
@@ -95,7 +96,7 @@ static int getCpuFrequencyMhz() { return 1; }
 #define PRO_CPU_NUM 0
 #endif
 
-uint32_t process(SamplerBase *sampler, int16_t *output)
+uint32_t process(Sampler& sampler, int16_t *output)
 {
   uint32_t cycle_begin, cycle_end;
 #if defined (M5UNIFIED_PC_BUILD)
@@ -103,7 +104,7 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
 #else
   __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_begin)); // 処理前のCPUサイクル値を取得
 #endif
-  sampler->Process(output);
+  sampler.Process(output);
 #if defined (M5UNIFIED_PC_BUILD)
   cycle_end = M5.micros();
 #else
@@ -156,7 +157,7 @@ uint32_t process(SamplerBase *sampler, int16_t *output)
   return cycle;
 }
 
-uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
+uint32_t benchmark(const std::shared_ptr<Sampler>& sampler, const MidiMessage *song)
 {
   // M5.Speakerに渡すバッファとして4つ用意する。(3個あればよいが循環処理をしやすくするため4個とした)
   int16_t output[4][SAMPLE_BUFFER_SIZE] = {0};
@@ -164,11 +165,11 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
 
   uint32_t cycle_count = 0;
 
-  sampler->SetTimbre(0, &piano);
-  sampler->SetTimbre(1, &bass);
-  sampler->SetTimbre(2, &supersaw);
-  sampler->SetTimbre(3, &epiano);
-  sampler->SetTimbre(9, &drumset);
+  sampler->SetTimbre(0, piano);
+  sampler->SetTimbre(1, bass);
+  sampler->SetTimbre(2, supersaw);
+  sampler->SetTimbre(3, epiano);
+  sampler->SetTimbre(9, drumset);
 
   // 最初に無音を再生しておくことで先頭のノイズを抑える
   M5.Speaker.playRaw(output[buf_idx], SAMPLE_BUFFER_SIZE, SAMPLE_RATE, false, 16, SPK_CH);
@@ -212,7 +213,7 @@ uint32_t benchmark(SamplerBase *sampler, const MidiMessage *song)
     // 音声処理を進める
     while (processedSamples < nextGoal)
     {
-      cycle_count += process(sampler, output[buf_idx]);
+      cycle_count += process(*sampler, output[buf_idx]);
       buf_idx = (buf_idx + 1) & 3;
       processedSamples += SAMPLE_BUFFER_SIZE;
     }
@@ -284,16 +285,9 @@ void loop()
     M5.Display.println("Processing...");
 
     time_t elapsedTime = 0;
-    if (touch.base_y < (M5.Display.height()/2))
-    {
-      SamplerLegacy sampler = SamplerLegacy();
-      elapsedTime = benchmark(&sampler, song_table[song_index].song);
-    }
-    else
-    {
-      SamplerOptimized sampler = SamplerOptimized();
-      elapsedTime = benchmark(&sampler, song_table[song_index].song);
-    }
+    std::shared_ptr<Sampler> sampler = Sampler::Create();
+    elapsedTime = benchmark(sampler, song_table[song_index].song);
+
     
 #if ENABLE_PRINTING
     M5.Display.println("Processed.");

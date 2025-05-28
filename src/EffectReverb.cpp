@@ -1,11 +1,17 @@
 #include <EffectReverb.h>
-#include <M5Unified.h>
 #include <cmath>
-#if defined(M5UNIFIED_PC_BUILD)
-#define M_PI 3.14159265359
-#else
+
+#if __has_include("bits/stdc++.h")
 #include <bits/stdc++.h>
-#endif 
+#endif
+#if !defined(M_PI)
+#define M_PI 3.14159265359
+#endif
+
+namespace capsule
+{
+namespace sampler
+{
 
 // コム/オールパスフィルターの設定
 // バッファの後ろは4サンプル以上空けておく必要がある
@@ -69,11 +75,11 @@ void EffectReverb::Init()
                     7 * 8) &
                    ~0b11) *
                   sizeof(float);
-#if defined(M5UNIFIED_PC_BUILD)
-    memory = (float *)calloc(1, size);
-#else
+#if defined ( ESP_PLATFORM )
     // DRAMに16バイトアラインされた状態でメモリを確保する (SIMDを使用するには16バイトアラインされている必要がある)
-    memory = (float *)heap_caps_aligned_calloc(16, 1, size, MALLOC_CAP_INTERNAL);
+    memory = (float *)heap_caps_aligned_calloc(16, 1, size, MALLOC_CAP_DMA);
+#else
+    memory = (float *)calloc(1, size);
 #endif
 
     // 現状、timeは0.11〜1.0のみ対応
@@ -100,7 +106,7 @@ void EffectReverb::Init()
     bandpass = setup_bandpass_filter(sampleRate, 2000.0f, 1.0f);
 }
 
-__attribute((noinline, optimize("-O3")))
+__attribute((noclone, noinline, optimize("-O2")))
 void comb_filter_process(const float *input, float *output, struct feedback_filter_t *comb, size_t len)
 {
     float *buffer_start = comb->buffer_start;
@@ -212,7 +218,7 @@ void comb_filter_process(const float *input, float *output, struct feedback_filt
     comb->cursor = cursor;
 }
 
-__attribute((noinline, optimize("-O3")))
+__attribute((noclone, noinline, optimize("-O2")))
 void allpass_filter_process(const float *input, float *output, struct feedback_filter_t *allpass, size_t len)
 {
     float *buffer_start = allpass->buffer_start;
@@ -437,11 +443,11 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
     float buffer[bufferSize] __attribute__((aligned(16)));
     float multiplier = level * 0.25f; // 0.25fはコムフィルターの平均を取るため
 
-#if defined(M5UNIFIED_PC_BUILD)
+#if defined ( ESP_PLATFORM )
+    float processed[bufferSize] __attribute__((aligned(16))) = {0.0f}; // これが最終的にリバーブ成分になる
+#else
     float processed[bufferSize]; // これが最終的にリバーブ成分になる
     memset(processed, 0, sizeof(float) * bufferSize);
-#else
-    float processed[bufferSize] __attribute__((aligned(16))) = {0.0f}; // これが最終的にリバーブ成分になる
 #endif
 
     { // 入力の振幅を下げてbufferに格納
@@ -491,4 +497,7 @@ void EffectReverb::Process(const float *input, float *__restrict__ output)
             out += 4;
         } while (--length);
     }
+}
+
+}
 }

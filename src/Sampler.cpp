@@ -1,96 +1,186 @@
-#include <SamplerOptimized.h>
-#include <algorithm>
-#include <tables.h>
+#include "Sampler.h"
 
-void SamplerOptimized::SetTimbre(uint8_t channel, Timbre *t)
+#include <algorithm>
+#include <Tables.h>
+#include "Utils.h"
+
+#if defined(FREERTOS)
+// 長い処理ではセマフォを使用し、短い処理ではスピンロックを使用する
+#define ENTER_CRITICAL_SPINLOCK(mutex) portENTER_CRITICAL(&mutex)
+#define EXIT_CRITICAL_SPINLOCK(mutex) portEXIT_CRITICAL(&mutex)
+#define ENTER_CRITICAL_SEMAPHORE(mutex) xSemaphoreTake(mutex, portMAX_DELAY)
+#define EXIT_CRITICAL_SEMAPHORE(mutex) xSemaphoreGive(mutex)
+#else
+// 非FreeRTOS環境ではすべて同じ実装
+#define ENTER_CRITICAL_SPINLOCK(mutex) mutex.lock()
+#define EXIT_CRITICAL_SPINLOCK(mutex) mutex.unlock()
+#define ENTER_CRITICAL_SEMAPHORE(mutex) mutex.lock()
+#define EXIT_CRITICAL_SEMAPHORE(mutex) mutex.unlock()
+#endif
+
+using std::unique_ptr;
+using std::shared_ptr;
+
+namespace capsule
+{
+namespace sampler
+{
+
+void Sampler::InitializeMutexes() {
+#if defined(FREERTOS)
+    // 長時間の処理用のセマフォを初期化
+    playersMutex = xSemaphoreCreateMutex();
+    if (playersMutex == NULL) {
+        // エラー処理（必要に応じて）
+        LOGI("Sampler", "Failed to create playersMutex\n");
+    }
+#endif
+}
+
+#include <optional>
+
+std::optional<std::reference_wrapper<const Sample>> Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
+{
+    for (const auto& ms : *samples)
+    {
+        if (ms->lowerNoteNo <= noteNo && noteNo <= ms->upperNoteNo && ms->lowerVelocity <= velocity && velocity <= ms->upperVelocity)
+            return std::cref(*ms->sample);
+    }
+    return std::nullopt;
+}
+
+void Sampler::SetTimbre(uint8_t channel, shared_ptr<Timbre> t)
 {
     if(channel < CH_COUNT) channels[channel].SetTimbre(t);
 }
-void SamplerOptimized::Channel::SetTimbre(Timbre *t)
+void Sampler::Channel::SetTimbre(shared_ptr<Timbre> t)
 {
     timbre = t;
 }
 
-void SamplerOptimized::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
+void Sampler::NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::NOTE_ON, channel, noteNo, velocity, 0});
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 }
-void SamplerOptimized::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
+void Sampler::NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel)
 {
     if (channel >= CH_COUNT) channel = 0; // 無効なチャンネルの場合は1CHにフォールバック
     velocity &= 0b01111111; // velocityを0-127の範囲に収める
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::NOTE_OFF, channel, noteNo, velocity, 0});
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 }
-void SamplerOptimized::PitchBend(int16_t pitchBend, uint8_t channel)
+void Sampler::PitchBend(int16_t pitchBend, uint8_t channel)
 {
     if (channel >= CH_COUNT) return; // 無効なチャンネルの場合は何もしない
     if (pitchBend < -8192) pitchBend = -8192;
     else if (pitchBend > 8191) pitchBend = 8191;
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     messageQueue.push_back(Message{MessageStatus::PITCH_BEND, channel, 0, 0, pitchBend});
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 }
 
-void SamplerOptimized::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
+void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
 {
+    LOGI("Sampler", "NoteOn : %2x, %2x\n", noteNo, velocity);
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
+    
+    // 弱参照からの共有ポインタ取得を試みる
+    auto samplerPtr = sampler.lock();
+    if (!samplerPtr) return;  // サンプラーが既に解放されている場合は何もしない
+    
+    ENTER_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
-        if (sampler->players[i].playing == false)
+        if (samplerPtr->players[i].playing == false)
         {
-            sampler->players[i] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
+            // チャンネル情報を追加
+            uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
+            samplerPtr->players[i] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
             playingNotes.push_back(PlayingNote{noteNo, i});
+            EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
             return;
         }
         else
         {
-            if (sampler->players[i].createdAt < sampler->players[oldestPlayerId].createdAt)
+            if (samplerPtr->players[i].createdAt < samplerPtr->players[oldestPlayerId].createdAt)
                 oldestPlayerId = i;
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    sampler->players[oldestPlayerId] = SamplerOptimized::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend);
+    uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
+    samplerPtr->players[oldestPlayerId] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
+    EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
 }
-void SamplerOptimized::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
+void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
 {
+    LOGI("Sampler", "NoteOff: %2x, %2x\n", noteNo, velocity);
+    
+    // 弱参照からの共有ポインタ取得を試みる
+    auto samplerPtr = sampler.lock();
+    if (!samplerPtr) return;  // サンプラーが既に解放されている場合は何もしない
+    
+    ENTER_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
-    for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
+    for (auto itr = playingNotes.begin(); itr != playingNotes.end();)
     {
         if (itr->noteNo == noteNo)
         {
-            SamplePlayer *player = &(sampler->players[itr->playerId]);
-            // 発音後に同時発音数制限によって発音が止められていなければ、発音を終わらせる
-            // TODO: 本当はユニークID的なものを設けるべきだが、
-            //       とりあえずnoteNoが合ってれば高確率で該当の発音でしょうという判断をしています
-            if (player->noteNo == noteNo)
+            SamplePlayer *player = &(samplerPtr->players[itr->playerId]);
+            // ノート番号とチャンネル両方が一致する場合、発音を終わらせる\
+            // 発音後に同時発音数制限によって発音が止められている場合は何もしないことになる
+            uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
+            if (player->noteNo == noteNo && player->channel == channelIndex)
                 player->released = true;
-            playingNotes.erase(itr);
+            itr = playingNotes.erase(itr);
         }
+        else itr++;
     }
+    EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
 }
-void SamplerOptimized::Channel::PitchBend(int16_t b)
+void Sampler::Channel::PitchBend(int16_t b)
 {
     pitchBend = b * 12.0f / 8192.0f;
+    
+    // 弱参照からの共有ポインタ取得を試みる
+    auto samplerPtr = sampler.lock();
+    if (!samplerPtr) return;  // サンプラーが既に解放されている場合は何もしない
+    
+    ENTER_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
     // 既に発音中のノートに対してピッチベンドを適用する
     for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
     {
-        // TODO: 同時発音数制限によって発音が止められて別の音が流れている場合は動作がおかしくなるので修正すべき
-        SamplePlayer *player = &(sampler->players[itr->playerId]);
-        player->pitchBend = pitchBend;
-        player->UpdatePitch();
+        SamplePlayer *player = &(samplerPtr->players[itr->playerId]);
+        // 同じチャンネルのノートにのみ適用する
+        uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
+        if (player->channel == channelIndex) {
+            player->pitchBend = pitchBend;
+            player->UpdatePitch();
+        }
     }
+    EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
 }
 
-void SamplerOptimized::SamplePlayer::UpdatePitch()
+void Sampler::SamplePlayer::UpdatePitch()
 {
-    float delta = noteNo - sample->root + pitchBend;
+    if (!sample.has_value()) return;
+    
+    float delta = noteNo - sample.value().get().root + pitchBend;
     pitch = ((powf(2.0f, delta / 12.0f)));
 }
-void SamplerOptimized::SamplePlayer::UpdateGain()
+void Sampler::SamplePlayer::UpdateGain()
 {
-    if (!sample->adsrEnabled)
+    if (!sample.has_value()) return;
+
+    const Sample& sampleRef = sample.value().get();
+
+    if (!sampleRef.adsrEnabled)
     {
         gain = volume;
         return;
@@ -103,7 +193,7 @@ void SamplerOptimized::SamplePlayer::UpdateGain()
     switch (adsrState)
     {
     case attack:
-        gain += sample->attack * volume;
+        gain += sampleRef.attack * volume;
         if (gain >= volume)
         {
             gain = volume;
@@ -111,8 +201,8 @@ void SamplerOptimized::SamplePlayer::UpdateGain()
         }
         break;
     case decay:
-        goal = sample->sustain * volume;
-        gain = (gain - goal) * sample->decay + goal;
+        goal = sampleRef.sustain * volume;
+        gain = (gain - goal) * sampleRef.decay + goal;
         if ((gain - goal) < 0.001f)
         {
             adsrState = sustain;
@@ -122,7 +212,7 @@ void SamplerOptimized::SamplePlayer::UpdateGain()
     case sustain:
         break;
     case release:
-        gain *= sample->release;
+        gain *= sampleRef.release;
         if (gain < 0.001f)
         {
             gain = 0;
@@ -149,6 +239,9 @@ extern "C"
     // これをコメントアウトすると、アセンブリ言語版は呼ばれなくなり、C/C++版が呼ばれる
     void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length);
 }
+
+// なぜか関数が名前空間に入っている場合はweak属性が効かないので、ここでアーキテクチャを判定する
+#if 1
 
 // アセンブリ言語版と同様の処理を行うC/C++版の実装
 // weak属性を付けることで、アセンブリ言語版があればそちらを使う
@@ -186,13 +279,20 @@ void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length)
     work->pos_f = pos_f;
 }
 
-__attribute((optimize("-O3")))
-void SamplerOptimized::Process(int16_t* __restrict__ output)
+#endif
+
+__attribute((optimize("-O2")))
+void Sampler::Process(int16_t* __restrict__ output)
 {
     // キューを処理する
+    ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     while (!messageQueue.empty())
     {
         Message message = messageQueue.front();
+        messageQueue.pop_front();
+        EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
+        
+        // ミューテックスの外でメッセージを処理
         switch (message.status)
         {
         case MessageStatus::NOTE_ON:
@@ -205,11 +305,15 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
             channels[message.channel].PitchBend(message.pitchBend);
             break;
         }
-        messageQueue.pop_front();
+        
+        ENTER_CRITICAL_SPINLOCK(messageQueueMutex);
     }
+    EXIT_CRITICAL_SPINLOCK(messageQueueMutex);
 
     // 波形を生成
     float data[SAMPLE_BUFFER_SIZE] __attribute__ ((aligned (16))) = {0.0f};
+    
+    ENTER_CRITICAL_SEMAPHORE(playersMutex);
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
         SamplePlayer *player = &players[i];
@@ -218,8 +322,9 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
 
         for (uint_fast8_t j = 0; j < SAMPLE_BUFFER_SIZE / ADSR_UPDATE_SAMPLE_COUNT; j++)
         {
-            Sample *sample = player->sample;
-            if (sample->adsrEnabled)
+            if (!player->sample.has_value()) break;
+            const Sample &sample = player->sample.value();
+            if (sample.adsrEnabled)
                 player->UpdateGain();
             if (player->playing == false)
                 break;
@@ -231,18 +336,18 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
             // 後処理で float から int16_t への変換時処理を行う際の高速化の都合で、事前に 65536倍しておく
             gain *= masterVolume * 65536;
 
-            auto src = sample->sample;
+            auto src = sample.sample.get();
             sampler_process_inner_work_t work = {&src[player->pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], player->pos_f, gain, pitch};
             // 波形生成処理を行う
             sampler_process_inner(&work, ADSR_UPDATE_SAMPLE_COUNT);
 
-            int32_t loopEnd = sample->length;
+            int32_t loopEnd = sample.length;
             int32_t loopBack = 0;
             // adsrEnabledが有効の場合はループポイントを使用する。
-            if (sample->adsrEnabled)
+            if (sample.adsrEnabled)
             {
-                loopEnd = sample->loopEnd;
-                loopBack = sample->loopStart - loopEnd;
+                loopEnd = sample.loopEnd;
+                loopBack = sample.loopStart - loopEnd;
             }
 
             // 現在のサンプル位置に基づいてposがどこまで進んだか求める
@@ -266,6 +371,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
             player->pos_f = work.pos_f;
         }
     }
+    EXIT_CRITICAL_SEMAPHORE(playersMutex);
 
     { // マスターエフェクト処理
         reverb.Process(data, data);
@@ -328,4 +434,7 @@ void SamplerOptimized::Process(int16_t* __restrict__ output)
         }
 #endif
     }
+}
+
+}
 }
