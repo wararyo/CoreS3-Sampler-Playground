@@ -18,7 +18,7 @@ platformio.ini に下記を追記します。
 
 ```ini
 lib_deps = 
-  https://github.com/wararyo/CoreS3-Sampler-Playground.git#library
+  https://github.com/wararyo/CoreS3-Sampler-Playground.git
 ```
 
 ## 音色を作成する
