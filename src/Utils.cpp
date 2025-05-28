@@ -4,14 +4,12 @@
 #include <Arduino.h>
 #elif defined(ESP_PLATFORM)
 #include <esp_timer.h>
-#elif defined(SDL_h_)
-#if __has_include(<SDL2/SDL.h>)
+#elif __has_include(<SDL2/SDL.h>)
 #include <SDL2/SDL_main.h>
 #include <SDL2/SDL.h>
 #elif __has_include(<SDL.h>)
 #include <SDL_main.h>
 #include <SDL.h>
-#endif
 #endif
 
 namespace capsule

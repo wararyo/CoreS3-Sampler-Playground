@@ -281,7 +281,7 @@ void sampler_process_inner(sampler_process_inner_work_t *work, uint32_t length)
 
 #endif
 
-__attribute((optimize("-O3")))
+__attribute((optimize("-O2")))
 void Sampler::Process(int16_t* __restrict__ output)
 {
     // キューを処理する

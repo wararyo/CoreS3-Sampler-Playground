@@ -3,7 +3,8 @@
 
 #if __has_include("bits/stdc++.h")
 #include <bits/stdc++.h>
-#else
+#endif
+#if !defined(M_PI)
 #define M_PI 3.14159265359
 #endif
 
@@ -76,7 +77,7 @@ void EffectReverb::Init()
                   sizeof(float);
 #if defined ( ESP_PLATFORM )
     // DRAMに16バイトアラインされた状態でメモリを確保する (SIMDを使用するには16バイトアラインされている必要がある)
-    memory = (float *)heap_caps_aligned_calloc(16, 1, size, MALLOC_CAP_INTERNAL);
+    memory = (float *)heap_caps_aligned_calloc(16, 1, size, MALLOC_CAP_DMA);
 #else
     memory = (float *)calloc(1, size);
 #endif
@@ -105,7 +106,7 @@ void EffectReverb::Init()
     bandpass = setup_bandpass_filter(sampleRate, 2000.0f, 1.0f);
 }
 
-__attribute((noinline)) // optimize属性を付与するとIDF環境でなぜかコンパイルに失敗してしまう
+__attribute((noclone, noinline, optimize("-O2")))
 void comb_filter_process(const float *input, float *output, struct feedback_filter_t *comb, size_t len)
 {
     float *buffer_start = comb->buffer_start;
@@ -217,7 +218,7 @@ void comb_filter_process(const float *input, float *output, struct feedback_filt
     comb->cursor = cursor;
 }
 
-__attribute((noinline)) // optimize属性を付与するとIDF環境でなぜかコンパイルに失敗してしまう
+__attribute((noclone, noinline, optimize("-O2")))
 void allpass_filter_process(const float *input, float *output, struct feedback_filter_t *allpass, size_t len)
 {
     float *buffer_start = allpass->buffer_start;
