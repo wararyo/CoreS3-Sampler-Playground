@@ -18,7 +18,7 @@ Append the following in platformio.ini
 
 ```ini
 lib_deps = 
-  https://github.com/wararyo/CoreS3-Sampler-Playground.git
+  https://github.com/wararyo/CapsuleSampler.git
 ```
 
 ## Creating tones
