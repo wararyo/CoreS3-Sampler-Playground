@@ -96,7 +96,7 @@ static int getCpuFrequencyMhz() { return 1; }
 #define PRO_CPU_NUM 0
 #endif
 
-uint32_t process(const std::shared_ptr<Sampler>& sampler, int16_t *output)
+uint32_t process(Sampler& sampler, int16_t *output)
 {
   uint32_t cycle_begin, cycle_end;
 #if defined (M5UNIFIED_PC_BUILD)
@@ -104,7 +104,7 @@ uint32_t process(const std::shared_ptr<Sampler>& sampler, int16_t *output)
 #else
   __asm__ __volatile("rsr %0, ccount" : "=r"(cycle_begin)); // 処理前のCPUサイクル値を取得
 #endif
-  sampler->Process(output);
+  sampler.Process(output);
 #if defined (M5UNIFIED_PC_BUILD)
   cycle_end = M5.micros();
 #else
@@ -213,7 +213,7 @@ uint32_t benchmark(const std::shared_ptr<Sampler>& sampler, const MidiMessage *s
     // 音声処理を進める
     while (processedSamples < nextGoal)
     {
-      cycle_count += process(sampler, output[buf_idx]);
+      cycle_count += process(*sampler, output[buf_idx]);
       buf_idx = (buf_idx + 1) & 3;
       processedSamples += SAMPLE_BUFFER_SIZE;
     }

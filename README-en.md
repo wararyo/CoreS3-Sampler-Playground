@@ -104,5 +104,5 @@ The array must satisfy the following constraints.
 
 * When any two are taken out, their note number ranges must either match exactly or not overlap at all.
 * When any two with the same lowerNoteNo are taken out, their velocity ranges do not overlap.
-* Items are listed in descending order of lowerNoteNo.
-    * Items with the same lowerNoteNo are listed in descending order of lowerVelocity.
+* Items are listed in ascending order of lowerNoteNo.
+    * Items with the same lowerNoteNo are listed in ascending order of lowerVelocity.

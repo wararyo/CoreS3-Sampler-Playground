@@ -179,9 +179,6 @@ namespace sampler
             float pitchBend = 0.0f;
             std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
         };
-
-        template<typename... Args>
-        friend std::shared_ptr<Sampler> std::make_shared<Sampler, Args...>(Args&&...);
         
         // shared_ptrを生成するファクトリー関数
         // コンストラクタではなくこちらを使用しないと正しく動作しません
