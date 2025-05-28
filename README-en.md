@@ -1,4 +1,4 @@
-# CapsuleSampler
+# CapsuleSampler (formerly CoreS3-Sampler-Playground)
 
 [日本語](README.md)
 

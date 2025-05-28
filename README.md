@@ -1,4 +1,4 @@
-# CapsuleSampler
+# CapsuleSampler (旧CoreS3-Sampler-Playground)
 
 [English](README-en.md)
 
