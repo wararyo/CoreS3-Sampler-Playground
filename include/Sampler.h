@@ -7,6 +7,8 @@
 #include <vector>
 #include <cmath>
 #include <memory>
+#include <optional>
+#include <functional>
 #if defined(FREERTOS)
 #include <freertos/FreeRTOS.h>
 #else
@@ -55,6 +57,11 @@ namespace sampler
         float sustain;
         float release;
     
+        // 通常はこちらのコンストラクタを使用してください
+        Sample(std::unique_ptr<const int16_t> sample, uint32_t length, uint8_t root, uint32_t loopStart, uint32_t loopEnd, bool adsrEnabled, float attack, float decay, float sustain, float release)
+            : sample{std::move(sample)}, length{length}, root{root}, loopStart{loopStart}, loopEnd{loopEnd}, adsrEnabled{adsrEnabled}, attack{attack}, decay{decay}, sustain{sustain}, release{release} {}
+        // このコンストラクタを使用することで簡潔な初期化が可能です
+        // データが解放されないことが保証されている場合にのみ使用してください
         Sample(const int16_t *sample, uint32_t length, uint8_t root, uint32_t loopStart, uint32_t loopEnd, bool adsrEnabled, float attack, float decay, float sustain, float release)
             : sample{sample}, length{length}, root{root}, loopStart{loopStart}, loopEnd{loopEnd}, adsrEnabled{adsrEnabled}, attack{attack}, decay{decay}, sustain{sustain}, release{release} {}
         Sample(Sample&& other) : sample{std::move(other.sample)}, length{other.length}, root{other.root}, loopStart{other.loopStart}, loopEnd{other.loopEnd}, adsrEnabled{other.adsrEnabled}, attack{other.attack}, decay{other.decay}, sustain{other.sustain}, release{other.release} {}
@@ -75,8 +82,8 @@ namespace sampler
             uint8_t lowerVelocity; // このサンプルが選ばれるベロシティの下限(自身を含む)
             uint8_t upperVelocity; // このサンプルが選ばれるベロシティの上限(自身を含む)
 
-            MappedSample(const Sample *sample, uint8_t lowerNoteNo, uint8_t upperNoteNo, uint8_t lowerVelocity, uint8_t upperVelocity)
-                : sample{sample}, lowerNoteNo{lowerNoteNo}, upperNoteNo{upperNoteNo}, lowerVelocity{lowerVelocity}, upperVelocity{upperVelocity} {}
+            MappedSample(std::shared_ptr<const Sample> sample, uint8_t lowerNoteNo, uint8_t upperNoteNo, uint8_t lowerVelocity, uint8_t upperVelocity)
+                : sample{std::move(sample)}, lowerNoteNo{lowerNoteNo}, upperNoteNo{upperNoteNo}, lowerVelocity{lowerVelocity}, upperVelocity{upperVelocity} {}
             MappedSample(MappedSample&& other) : sample{std::move(other.sample)}, lowerNoteNo{other.lowerNoteNo}, upperNoteNo{other.upperNoteNo}, lowerVelocity{other.lowerVelocity}, upperVelocity{other.upperVelocity} {}
             MappedSample(const MappedSample& other) : sample{other.sample}, lowerNoteNo{other.lowerNoteNo}, upperNoteNo{other.upperNoteNo}, lowerVelocity{other.lowerVelocity}, upperVelocity{other.upperVelocity} {}
             MappedSample& operator=(MappedSample&& other) noexcept
@@ -103,9 +110,9 @@ namespace sampler
                 samples->push_back(std::make_unique<MappedSample>(std::move(ms)));
             }
         }
-        // 指定したノートナンバーとベロシティが範囲に含まれているサンプルを返す
-        // 該当するサンプルがない場合はnullptrを返す
-        std::shared_ptr<const Sample> GetAppropriateSample(uint8_t noteNo, uint8_t velocity);
+        // 指定したノートナンバーとベロシティが範囲に含まれているサンプルへの参照を返す
+        // 該当するサンプルがない場合はnulloptを返す
+        std::optional<std::reference_wrapper<const Sample>> GetAppropriateSample(uint8_t noteNo, uint8_t velocity);
 
     private:
         // サンプルの集合
@@ -116,21 +123,21 @@ namespace sampler
         std::unique_ptr<std::vector<std::unique_ptr<MappedSample>>> samples;
     };
 
-    class Sampler
+    class Sampler : public std::enable_shared_from_this<Sampler>
     {
     public:
         // 与えられたサンプルを再生する
         class SamplePlayer
         {
         public:
-            SamplePlayer(std::shared_ptr<const Sample> sample, uint8_t noteNo, float volume, float pitchBend, uint8_t channel)
-                : sample{sample}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, channel{channel}, createdAt{sampler::micros()}
+            SamplePlayer(std::optional<std::reference_wrapper<const Sample>> sample, uint8_t noteNo, float volume, float pitchBend, uint8_t channel)
+                : sample{std::move(sample)}, noteNo{noteNo}, volume{volume}, pitchBend{pitchBend}, channel{channel}, createdAt{sampler::micros()}
             {
                 UpdatePitch();
                 gain = volume;
             }
-            SamplePlayer() : sample{nullptr}, noteNo{60}, volume{1.0f}, channel{0}, createdAt{sampler::micros()}, playing{false} {}
-            std::shared_ptr<const Sample> sample;
+            SamplePlayer() : sample{std::nullopt}, noteNo{60}, volume{1.0f}, channel{0}, createdAt{sampler::micros()}, playing{false} {}
+            std::optional<std::reference_wrapper<const Sample>> sample;
             uint8_t noteNo;
             float volume;
             float pitchBend = 0;
@@ -155,14 +162,14 @@ namespace sampler
         {
         public:
             Channel() {}
-            Channel(Sampler *sampler) : sampler{sampler} {}
+            Channel(std::weak_ptr<Sampler> sampler) : sampler{std::move(sampler)} {}
             void NoteOn(uint8_t noteNo, uint8_t velocity);
             void NoteOff(uint8_t noteNo, uint8_t velocity);
             void PitchBend(int16_t pitchBend);
             void SetTimbre(std::shared_ptr<Timbre> t);
 
         private:
-            Sampler *sampler; // 親サンプラー
+            std::weak_ptr<Sampler> sampler; // 循環参照を避けるために弱参照を使用
             struct PlayingNote
             {
                 uint8_t noteNo;
@@ -173,14 +180,29 @@ namespace sampler
             std::list<PlayingNote> playingNotes; // このチャンネルで現在再生しているノート
         };
 
-        Sampler()
+        template<typename... Args>
+        friend std::shared_ptr<Sampler> std::make_shared<Sampler, Args...>(Args&&...);
+        
+        // shared_ptrを生成するファクトリー関数
+        // コンストラクタではなくこちらを使用しないと正しく動作しません
+        static std::shared_ptr<Sampler> Create()
+        {
+            auto sampler = std::make_shared<Sampler>();
+            sampler->initialize();
+            return sampler;
+        }
+        
+    private:        
+        void initialize()
         {
             for (uint_fast8_t i = 0; i < CH_COUNT; i++)
-                channels[i] = Channel(this);
+                channels[i] = Channel(weak_from_this());
 #if defined(FREERTOS)
             InitializeMutexes();
 #endif
         }
+        
+    public:
 
         void NoteOn(uint8_t noteNo, uint8_t velocity, uint8_t channel);
         void NoteOff(uint8_t noteNo, uint8_t velocity, uint8_t channel);

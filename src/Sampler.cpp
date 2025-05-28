@@ -37,14 +37,16 @@ void Sampler::InitializeMutexes() {
 #endif
 }
 
-shared_ptr<const Sample> Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
+#include <optional>
+
+std::optional<std::reference_wrapper<const Sample>> Timbre::GetAppropriateSample(uint8_t noteNo, uint8_t velocity)
 {
     for (const auto& ms : *samples)
     {
         if (ms->lowerNoteNo <= noteNo && noteNo <= ms->upperNoteNo && ms->lowerVelocity <= velocity && velocity <= ms->upperVelocity)
-            return ms->sample;
+            return std::cref(*ms->sample);
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 void Sampler::SetTimbre(uint8_t channel, shared_ptr<Timbre> t)
@@ -88,79 +90,97 @@ void Sampler::Channel::NoteOn(uint8_t noteNo, uint8_t velocity)
     // 空いているPlayerを探し、そのPlayerにサンプルをセットする
     uint_fast8_t oldestPlayerId = 0;
     
-    ENTER_CRITICAL_SEMAPHORE(sampler->playersMutex);
+    // 弱参照からの共有ポインタ取得を試みる
+    auto samplerPtr = sampler.lock();
+    if (!samplerPtr) return;  // サンプラーが既に解放されている場合は何もしない
+    
+    ENTER_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
     for (uint_fast8_t i = 0; i < MAX_SOUND; i++)
     {
-        if (sampler->players[i].playing == false)
+        if (samplerPtr->players[i].playing == false)
         {
             // チャンネル情報を追加
-            uint8_t channelIndex = std::distance(&sampler->channels[0], this);
-            sampler->players[i] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
+            uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
+            samplerPtr->players[i] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
             playingNotes.push_back(PlayingNote{noteNo, i});
-            EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
+            EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
             return;
         }
         else
         {
-            if (sampler->players[i].createdAt < sampler->players[oldestPlayerId].createdAt)
+            if (samplerPtr->players[i].createdAt < samplerPtr->players[oldestPlayerId].createdAt)
                 oldestPlayerId = i;
         }
     }
     // 全てのPlayerが再生中だった時には、最も昔に発音されたPlayerを停止する
-    uint8_t channelIndex = std::distance(&sampler->channels[0], this);
-    sampler->players[oldestPlayerId] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
+    uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
+    samplerPtr->players[oldestPlayerId] = Sampler::SamplePlayer(timbre->GetAppropriateSample(noteNo, velocity), noteNo, velocityTable[velocity], pitchBend, channelIndex);
     playingNotes.push_back(PlayingNote{noteNo, oldestPlayerId});
-    EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
+    EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
 }
 void Sampler::Channel::NoteOff(uint8_t noteNo, uint8_t velocity)
 {
     LOGI("Sampler", "NoteOff: %2x, %2x\n", noteNo, velocity);
     
-    ENTER_CRITICAL_SEMAPHORE(sampler->playersMutex);
+    // 弱参照からの共有ポインタ取得を試みる
+    auto samplerPtr = sampler.lock();
+    if (!samplerPtr) return;  // サンプラーが既に解放されている場合は何もしない
+    
+    ENTER_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
     // 現在このチャンネルで発音しているノートの中で該当するnoteNoのものの発音を終わらせる
     for (auto itr = playingNotes.begin(); itr != playingNotes.end();)
     {
         if (itr->noteNo == noteNo)
         {
-            SamplePlayer *player = &(sampler->players[itr->playerId]);
+            SamplePlayer *player = &(samplerPtr->players[itr->playerId]);
             // ノート番号とチャンネル両方が一致する場合、発音を終わらせる\
             // 発音後に同時発音数制限によって発音が止められている場合は何もしないことになる
-            uint8_t channelIndex = std::distance(&sampler->channels[0], this);
+            uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
             if (player->noteNo == noteNo && player->channel == channelIndex)
                 player->released = true;
             itr = playingNotes.erase(itr);
         }
         else itr++;
     }
-    EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
+    EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
 }
 void Sampler::Channel::PitchBend(int16_t b)
 {
     pitchBend = b * 12.0f / 8192.0f;
     
-    ENTER_CRITICAL_SEMAPHORE(sampler->playersMutex);
+    // 弱参照からの共有ポインタ取得を試みる
+    auto samplerPtr = sampler.lock();
+    if (!samplerPtr) return;  // サンプラーが既に解放されている場合は何もしない
+    
+    ENTER_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
     // 既に発音中のノートに対してピッチベンドを適用する
     for (auto itr = playingNotes.begin(); itr != playingNotes.end(); itr++)
     {
-        SamplePlayer *player = &(sampler->players[itr->playerId]);
+        SamplePlayer *player = &(samplerPtr->players[itr->playerId]);
         // 同じチャンネルのノートにのみ適用する
-        uint8_t channelIndex = std::distance(&sampler->channels[0], this);
+        uint8_t channelIndex = std::distance(&samplerPtr->channels[0], this);
         if (player->channel == channelIndex) {
             player->pitchBend = pitchBend;
             player->UpdatePitch();
         }
     }
-    EXIT_CRITICAL_SEMAPHORE(sampler->playersMutex);
+    EXIT_CRITICAL_SEMAPHORE(samplerPtr->playersMutex);
 }
 
 void Sampler::SamplePlayer::UpdatePitch()
 {
-    float delta = noteNo - sample->root + pitchBend;
+    if (!sample.has_value()) return;
+    
+    float delta = noteNo - sample.value().get().root + pitchBend;
     pitch = ((powf(2.0f, delta / 12.0f)));
 }
 void Sampler::SamplePlayer::UpdateGain()
 {
-    if (!sample->adsrEnabled)
+    if (!sample.has_value()) return;
+
+    const Sample& sampleRef = sample.value().get();
+
+    if (!sampleRef.adsrEnabled)
     {
         gain = volume;
         return;
@@ -173,7 +193,7 @@ void Sampler::SamplePlayer::UpdateGain()
     switch (adsrState)
     {
     case attack:
-        gain += sample->attack * volume;
+        gain += sampleRef.attack * volume;
         if (gain >= volume)
         {
             gain = volume;
@@ -181,8 +201,8 @@ void Sampler::SamplePlayer::UpdateGain()
         }
         break;
     case decay:
-        goal = sample->sustain * volume;
-        gain = (gain - goal) * sample->decay + goal;
+        goal = sampleRef.sustain * volume;
+        gain = (gain - goal) * sampleRef.decay + goal;
         if ((gain - goal) < 0.001f)
         {
             adsrState = sustain;
@@ -192,7 +212,7 @@ void Sampler::SamplePlayer::UpdateGain()
     case sustain:
         break;
     case release:
-        gain *= sample->release;
+        gain *= sampleRef.release;
         if (gain < 0.001f)
         {
             gain = 0;
@@ -302,8 +322,9 @@ void Sampler::Process(int16_t* __restrict__ output)
 
         for (uint_fast8_t j = 0; j < SAMPLE_BUFFER_SIZE / ADSR_UPDATE_SAMPLE_COUNT; j++)
         {
-            const Sample *sample = player->sample.get();
-            if (sample->adsrEnabled)
+            if (!player->sample.has_value()) break;
+            const Sample &sample = player->sample.value();
+            if (sample.adsrEnabled)
                 player->UpdateGain();
             if (player->playing == false)
                 break;
@@ -315,18 +336,18 @@ void Sampler::Process(int16_t* __restrict__ output)
             // 後処理で float から int16_t への変換時処理を行う際の高速化の都合で、事前に 65536倍しておく
             gain *= masterVolume * 65536;
 
-            auto src = sample->sample.get();
+            auto src = sample.sample.get();
             sampler_process_inner_work_t work = {&src[player->pos], &data[j * ADSR_UPDATE_SAMPLE_COUNT], player->pos_f, gain, pitch};
             // 波形生成処理を行う
             sampler_process_inner(&work, ADSR_UPDATE_SAMPLE_COUNT);
 
-            int32_t loopEnd = sample->length;
+            int32_t loopEnd = sample.length;
             int32_t loopBack = 0;
             // adsrEnabledが有効の場合はループポイントを使用する。
-            if (sample->adsrEnabled)
+            if (sample.adsrEnabled)
             {
-                loopEnd = sample->loopEnd;
-                loopBack = sample->loopStart - loopEnd;
+                loopEnd = sample.loopEnd;
+                loopBack = sample.loopStart - loopEnd;
             }
 
             // 現在のサンプル位置に基づいてposがどこまで進んだか求める
