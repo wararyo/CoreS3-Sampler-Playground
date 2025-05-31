@@ -1,4 +1,4 @@
-#if 0
+#if defined ( __XTENSA__ )
 
 #if __has_include (<sdkconfig.h>)
 #include <sdkconfig.h>
